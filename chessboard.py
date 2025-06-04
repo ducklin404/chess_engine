@@ -72,6 +72,10 @@ def main():
     piece_images = load_piece_images(CELL_SIZE)
     side = 'white'  # or 'black'
     running = True
+    board_state = INITIAL_POSITION
+    dragging = False
+    dragging_piece = None
+    drag_start = (None, None)
 
     # Prepare the board surface
     board = Surface((BOARD_SIZE, BOARD_SIZE))
@@ -82,10 +86,47 @@ def main():
 
     # Main loop
     while running:
-        screen.blit(board, board.get_rect())
+        board.fill((255, 255, 255))
+        draw_board(board, CELL_SIZE)
+        draw_labels(board, font, side, CELL_SIZE, LABEL_OFFSET)
+        draw_pieces(board, board_state, piece_images, side, CELL_SIZE)
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                mx, my = pygame.mouse.get_pos()
+                row = (my // CELL_SIZE)
+                col = (mx // CELL_SIZE)
+                if row < 0 or row > 7 or col < 0 or col > 7:
+                    continue
+                if board_state[row][col] == '--':
+                    continue
+                dragging_piece = board_state[row][col]
+                board_state[row][col] = '--'
+                dragging = True
+                drag_start = (row, col)
+
+                
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if dragging:
+                    mx, my = pygame.mouse.get_pos()
+                    dragging = False
+                    row = (my // CELL_SIZE)
+                    col = (mx // CELL_SIZE)
+                    if 0 <= row <= 7 and 0 <= col <= 7:
+                        board_state[row][col] = dragging_piece
+                        board_state[drag_start[0]][drag_start[1]] = '--'
+                            
+                    dragging_piece = None
+
+        if dragging:
+            mx, my = pygame.mouse.get_pos()
+            board.blit(piece_images[dragging_piece], (mx - piece_images[dragging_piece].get_width() // 2, my - piece_images[dragging_piece].get_height() // 2))
+                
+        screen.blit(board, board.get_rect())
+                    
         pygame.display.update()
 
     pygame.quit()
