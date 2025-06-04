@@ -7,6 +7,7 @@ LABEL_OFFSET = 0.85
 BOARD_SIZE = CELL_SIZE * 8
 DARK = (118, 150,  86)
 LIGHT = (238, 238, 210)
+hovered_color = (144, 238, 144, 128)
 LETTERS = 'abcdefgh'
 PIECES = ['wp', 'bp', 'wn', 'bn', 'wb', 'bb', 'wr', 'br', 'wq', 'bq', 'wk', 'bk']
 INITIAL_POSITION = [
@@ -21,6 +22,7 @@ INITIAL_POSITION = [
 ]
 
 
+
 def load_piece_images(cell_size):
     piece_images = {}
     for piece in PIECES:
@@ -33,6 +35,11 @@ def draw_board(surface, cell_size):
         for y in range(8):
             color = LIGHT if (x + y) % 2 == 0 else DARK
             pygame.draw.rect(surface, color, (x * cell_size, y * cell_size, cell_size, cell_size))
+            
+def draw_hovered(surface, cell_size, x, y):
+    hovered_surface = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+    hovered_surface.fill(hovered_color)
+    surface.blit(hovered_surface, (x * cell_size , y * cell_size))
 
 def draw_labels(surface, font, side, cell_size, label_offset):
     for i in range(8):
@@ -117,12 +124,15 @@ def main():
                     col = (mx // CELL_SIZE)
                     if 0 <= row <= 7 and 0 <= col <= 7:
                         board_state[row][col] = dragging_piece
-                        board_state[drag_start[0]][drag_start[1]] = '--'
+                        
                             
                     dragging_piece = None
 
         if dragging:
             mx, my = pygame.mouse.get_pos()
+            row = (my // CELL_SIZE)
+            col = (mx // CELL_SIZE)
+            draw_hovered(board, CELL_SIZE, col, row)
             board.blit(piece_images[dragging_piece], (mx - piece_images[dragging_piece].get_width() // 2, my - piece_images[dragging_piece].get_height() // 2))
                 
         screen.blit(board, board.get_rect())
