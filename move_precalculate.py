@@ -80,15 +80,22 @@ def precompute_knight_attacks(position):
     return mask
 
 
-def precompute_pawn_attacks(position):
-    row = position // 8
-    col = position % 8
+def precompute_pawn_attacks(position, side = "white"):
+    row, col = divmod(position, 8)
     mask = 0
-    if row < 7:
-        if col + 1 < 8:
-            mask |= 1 << (row + 1) * 8 + (col + 1)
-        if col - 1 >= 0:
-            mask |= 1 << (row + 1) * 8 + (col-1)
+    
+    if side == 'white':
+        if row < 7:
+            if col + 1 < 8:
+                mask |= 1 << (row + 1) * 8 + (col + 1)
+            if col - 1 >= 0:
+                mask |= 1 << (row + 1) * 8 + (col-1)
+    else:
+        if row> 0:
+            if col +1 < 8:
+                mask |= 1 << (row - 1) * 8 + (col + 1)
+            if col - 1 >= 0:
+                mask |= 1 << (row - 1) * 8 + (col-1)
 
     return mask
 
@@ -121,6 +128,18 @@ def rook_mask(square: int) -> int:
         mask |= 1 << (row * 8 + c)
     return mask
 
+def bishop_mask(square: int) -> int:
+    row, col = divmod(square, 8)
+    mask = 0
+    for d_row, d_col in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+        r, c = row + d_row, col + d_col
+        while 0 < r < 7 and 0 < c < 7:  
+            mask |= 1 << (r * 8 + c)
+            r += d_row
+            c += d_col
+    return mask
+
+
 
 def rook_attack(square: int, occ: int):
     row, col = divmod(square, 8)
@@ -144,6 +163,24 @@ def rook_attack(square: int, occ: int):
             break
     return atk
 
+
+def bishop_attack(square: int, occ: int):
+    row, col = divmod(square, 8)
+    atk = 0
+    
+    for d_row, d_col in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
+        r = row+ d_row
+        c = col + d_col
+        while  0 <= r <= 7 and 0 <= c <= 7:
+            sq = 1 << r*8 + c 
+            atk |= sq
+            if sq & occ:
+                break
+            r += d_row
+            c += d_col
+    return atk
+              
+              
 def submasks(mask: int):
     """Yield all subsets of `mask`, including 0."""
     sub = mask
@@ -167,6 +204,24 @@ def build_rook_table(square: int) -> list[int]:
     return table
 
 
+def build_bishop_table(square: int) -> list[int]:
+    mask = bishop_mask(square)
+    rbits  = mask.bit_count()             
+    size   = 1 << rbits
+    table  = [0] * size
+    
+    for occ in submasks(mask):
+        idx = get_magic_index(occ, BISHOP_MAGIC[square], rbits)
+        table[idx] = bishop_attack(square, occ)
+        
+    return table
 
-ROOK_TABLE = [build_rook_table(sq) for sq in range(64)]                
-print(ROOK_TABLE)
+
+
+WHITE_PAWN_TABLE = [precompute_pawn_attacks(sq, 'white') for sq in range(64)]
+BLACK_PAWN_TABLE = [precompute_pawn_attacks(sq, 'black') for sq in range(64)]
+KING_TABLE = [precompute_king_attacks(sq) for sq in range(64)]
+KNIGHT_TABLE = [precompute_knight_attacks(sq) for sq in range(64)]
+ROOK_TABLE = [build_rook_table(sq) for sq in range(64)]   
+BISHOP_TABLE = [build_bishop_table(sq) for sq in range(64)]             
+# print(ROOK_TABLE)
