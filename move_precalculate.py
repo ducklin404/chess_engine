@@ -92,11 +92,9 @@ def precompute_pawn_attacks(position):
 
     return mask
 
-def get_magic_index(occ, magic_number, shift):
-    result = (occ * magic_number) & 0xFFFFFFFFFFFFFFFF
-    if shift:
-        result >> (64 - shift)
-    return result
+def get_magic_index(occ: int, magic: int, shift: int):
+    prod = (occ * magic) & 0xFFFFFFFFFFFFFFFF
+    return 0 if shift == 0 else prod >> (64 - shift)
 
 def count_ones_kernighan(n):
     count = 0
@@ -105,144 +103,70 @@ def count_ones_kernighan(n):
         count += 1
     return count
 
-def precompute_rook_attacks(position):
-    row = position // 8
-    col = position % 8
 
-    
-    up_dict = {0:0}
-    down_dict = {0:0}
-    left_dict = {0:0}
-    right_dict = {0:0}
-    up_bits = max(7- row -1, 0)
-    down_bits = max(row - 1, 0)
-    right_bits = max(7 - col -1, 0)
-    left_bits = max(col - 1, 0)
-    bit_shift = up_bits + down_bits + left_bits + right_bits
-    
-    result: list = [0] * (1 << bit_shift)
-    
-    # calculate for top here
-    for i in range(0, 2**up_bits):
-        occ_bb = 0
-        temp_result = 0
-        is_blocked = False
-        if i == 0:
-            for k in range(row + 1, 8):
-                temp_result |= 1 << k*8 + col
-            up_dict[0x0000000000000000] = temp_result
-            continue
-        elif row < 6:
-            for k in range(row+1, 7):
-                
-                lsb = i & 1
-                i = i >> 1
-                if lsb == 1:
-                    occ_bb |= 1 << k*8 + col
-                    if not is_blocked:
-                        is_blocked = True
-                        for j in range(row + 1, k+1):
-                            temp_result |= 1 << j*8 + col
-            up_dict[occ_bb] = temp_result
-    
-    for key, value in up_dict.items():
-        print(bin(key), bin(value))
-           
-           
-    # calculate for down here
-    for i in range(0, 2**down_bits):
-        occ_bb = 0
-        temp_result = 0
-        is_blocked = False
-        if i == 0:
-            for k in range(0, row):
-                temp_result |= 1 << k*8 + col
-            down_dict[0x0000000000000000] = temp_result
-            continue
-        elif row > 1:
-            for k in range(row-1, 0, -1):
-                lsb = i & 1
-                i = i >> 1
-                if lsb == 1:
-                    occ_bb |= 1 << k*8 + col
-                    if not is_blocked:
-                        is_blocked = True
-                        for j in range(row -1, k-1, -1):
-                            temp_result |= 1 << j*8 + col
-            down_dict[occ_bb] = temp_result
-    
-    # for key, value in down_dict.items():
-    #     print(bin(key), bin(value))
-        
-        
-    # calculate for left here
-    for i in range(0, 2**left_bits):
-        occ_bb = 0
-        temp_result = 0
-        is_blocked = False
-        if i == 0:
-            for k in range(0, col):
-                temp_result |= 1 << row*8 + k
-            left_dict[0x0000000000000000] = temp_result
-            continue
-        elif col > 1:
-            for k in range(col-1, 0, -1):
-                lsb = i & 1
-                i = i >> 1
-                if lsb == 1:
-                    occ_bb |= 1 << row*8 + k
-                    if not is_blocked:
-                        is_blocked = True
-                        for j in range(col -1, k-1, -1):
-                            temp_result |= 1 << row*8 + j
-            left_dict[occ_bb] = temp_result
-    
-    
-    # for key, value in left_dict.items():
-    #     print(bin(key), bin(value))
-        
-        
-    # calculate for right here
-    for i in range(0, 2**right_bits):
-        occ_bb = 0
-        
-        temp_result = 0
-        is_blocked = False
-        if i == 0:
-            for k in range(col + 1, 8):
-                temp_result |= 1 << row*8 + k
-            right_dict[0x0000000000000000] = temp_result
-            continue
-        elif col < 6:
-            for k in range(col+1, 7):
-                lsb = i & 1
-                i = i >> 1
-                if lsb == 1:
-                    occ_bb |= 1 << row*8 + k
-                    if not is_blocked:
-                        is_blocked = True
-                        for j in range(col + 1, k+1):
-                            temp_result |= 1 << row*8 + j
-            right_dict[occ_bb] = temp_result
-    
-    # for key, value in right_dict.items():
-    #     print(bin(key), bin(value))
-        
-    
-    for u_key, u_value in up_dict.items():
-        for d_key, d_value in down_dict.items():
-            for r_key, r_value in right_dict.items():
-                for l_key, l_value in left_dict.items():   
-                    occ_bb = u_key | d_key | r_key | l_key
-                    magic_index = get_magic_index(occ_bb, ROOK_MAGIC[position], bit_shift)     
-                    result[magic_index] = u_value | d_value | r_value | l_value
-    
-    
-        
-    return result
-                
+def rook_mask(square: int) -> int:
+    row, col = divmod(square, 8)
+    mask = 0
+    # north
+    for r in range(row + 1, 7):           
+        mask |= 1 << (r * 8 + col)
+    # south
+    for r in range(row - 1, 0, -1):
+        mask |= 1 << (r * 8 + col)
+    # east
+    for c in range(col + 1, 7):
+        mask |= 1 << (row * 8 + c)
+    # west
+    for c in range(col - 1, 0, -1):
+        mask |= 1 << (row * 8 + c)
+    return mask
 
 
-if __name__ == '__main__':
-    precompute_rook_attacks(48)
-    
+def rook_attack(square: int, occ: int):
+    row, col = divmod(square, 8)
+    atk = 0
+    # walk each ray until first blocker
+    for r in range(row + 1, 8):
+        atk |= 1 << (r * 8 + col)
+        if occ & (1 << (r * 8 + col)):
+            break
+    for r in range(row - 1, -1, -1):
+        atk |= 1 << (r * 8 + col)
+        if occ & (1 << (r * 8 + col)):
+            break
+    for c in range(col + 1, 8):
+        atk |= 1 << (row * 8 + c)
+        if occ & (1 << (row * 8 + c)):
+            break
+    for c in range(col - 1, -1, -1):
+        atk |= 1 << (row * 8 + c)
+        if occ & (1 << (row * 8 + c)):
+            break
+    return atk
+
+def submasks(mask: int):
+    """Yield all subsets of `mask`, including 0."""
+    sub = mask
+    while True:
+        yield sub
+        if sub == 0:
+            break
+        sub = (sub - 1) & mask
+
+
+def build_rook_table(square: int) -> list[int]:
+    mask   = rook_mask(square)
+    rbits  = mask.bit_count()             
+    size   = 1 << rbits
+    table  = [0] * size
+
+    for occ in submasks(mask):
+        idx = get_magic_index(occ, ROOK_MAGIC[square], rbits)
+        table[idx] = rook_attack(square, occ)
+
+    return table
+
+
+
+ROOK_TABLE = [build_rook_table(sq) for sq in range(64)]                
+print(ROOK_TABLE)
