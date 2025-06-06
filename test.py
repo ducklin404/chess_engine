@@ -1,1 +1,2 @@
-print(bin(257))
+test = 0b1010
+print(bin(-~test))
