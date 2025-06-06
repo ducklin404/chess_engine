@@ -1,18 +1,16 @@
 BISHOP_RELEVEANT_BITS = [
-    6,5,5,5,5,5,5,6, 5,5,5,5,5,5,5,5,
-    5,5,7,7,7,7,5,5, 5,5,10,9,9,7,5,5,
-    5,5,10,9,9,7,5,5, 5,5,7,7,7,7,5,5,
-    5,5,5,5,5,5,5,5, 6,5,5,5,5,5,5,6,
+    6, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5, 5, 5, 10, 9, 9, 7, 5, 5,
+    5, 5, 10, 9, 9, 7, 5, 5, 5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 6,
 ]
 
 ROOK_RELEVEANT_BITS = [
-    12,11,11,11,11,11,11,12, 11,10,10,10,10,10,10,11,
-    11,10,10,10,10,10,10,11, 11,10,10,10,10,10,10,11,
-    11,10,10,10,10,10,10,11, 11,10,10,10,10,10,10,11,
-    11,10,10,10,10,10,10,11, 12,11,11,11,11,11,11,12,
+    12, 11, 11, 11, 11, 11, 11, 12, 11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11, 11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11, 11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11, 12, 11, 11, 11, 11, 11, 11, 12,
 ]
-
-
 
 
 ROOK_MAGIC = [
@@ -238,12 +236,15 @@ def build_between_mask(from_sq, to_sq):
     from_x, from_y = divmod(from_sq, 8)
     to_x, to_y = divmod(to_sq, 8)
 
-WHITE_KING_EMPTY   = 0x0000000000000060  # f1, g1
-WHITE_QUEEN_EMPTY  = 0x000000000000000E  # b1, c1, d1
-BLACK_KING_EMPTY   = 0x6000000000000000  # f8, g8
-BLACK_QUEEN_EMPTY  = 0x0E00000000000000  # b8, c8, d8
-WHITE_PAWN_ATTACK_TABLE = [precompute_pawn_attacks(sq, 'white') for sq in range(64)]
-BLACK_PAWN_ATTACK_TABLE = [precompute_pawn_attacks(sq, 'black') for sq in range(64)]
+
+WHITE_KING_EMPTY = 0x0000000000000060  # f1, g1
+WHITE_QUEEN_EMPTY = 0x000000000000000E  # b1, c1, d1
+BLACK_KING_EMPTY = 0x6000000000000000  # f8, g8
+BLACK_QUEEN_EMPTY = 0x0E00000000000000  # b8, c8, d8
+WHITE_PAWN_ATTACK_TABLE = [
+    precompute_pawn_attacks(sq, 'white') for sq in range(64)]
+BLACK_PAWN_ATTACK_TABLE = [
+    precompute_pawn_attacks(sq, 'black') for sq in range(64)]
 ROOK_RELEVANT_MASK = [rook_mask(sq) for sq in range(64)]
 BISHOP_RELEVANT_MASK = [bishop_mask(sq) for sq in range(64)]
 KING_TABLE = [precompute_king_attacks(sq) for sq in range(64)]
