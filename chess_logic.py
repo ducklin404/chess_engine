@@ -58,21 +58,20 @@ class ChessLogic:
             self.en_passant = from_sq - 8
         else:
             self.en_passant = None
-        
-        if promote:
-            if piece == 0 and 56 <= to_sq <= 63:
-                self.bb[0] &= ~(1 << to_sq)
-                self.bb[promote] |= 1 << to_sq
-            else:
-                self.bb[6] &= ~(1 << to_sq)
-                self.bb[promote] |= 1 << to_sq
-        
-    
         from_bb = ~(1 << from_sq) & 0xFFFFFFFFFFFFFFFF
         to_bb = 1 << to_sq
-        self.bb[piece] &= from_bb
-        self.bb[piece] |= to_bb
-        if captured:
+        if promote:
+            if 56 <= to_sq <= 63:
+                self.bb[0] &= from_bb
+                self.bb[promote] |= to_bb
+            else:
+                self.bb[6] &= from_bb
+                self.bb[promote] |= to_bb
+        else:
+            
+            self.bb[piece] &= from_bb
+            self.bb[piece] |= to_bb
+        if captured is not None:
             self.bb[captured] &= (~to_bb) & 0xFFFFFFFFFFFFFFFF
 
         if is_en_passant:
@@ -255,8 +254,7 @@ class ChessLogic:
             
 if __name__ == "__main__":
     logic = ChessLogic()
-    fen = 'rnbqk1nr/pppp1ppp/8/4p3/1bB1P3/2P5/PP1P1PPP/RNBQK1NR b KQkq - 0 1'
+    fen = 'rnbqkb1r/pppp1ppp/5n2/4p3/2B1P3/8/PPPP1PPP/RNBQK1NR w KQkq - 0 1'
     bb = logic.fen_to_bitboard(fen)
     result = logic.find_available_moves(bb, 'white')
-    print(bin(result[18]))
-    
+    print(bin(result[26]))

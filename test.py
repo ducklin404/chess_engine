@@ -1,5 +1,7 @@
-a = 0b0100010
-b = 0b010
+a=  1
 
-
-print(bin(a & ~b))
+if a:
+    print('a')
+    print('n')
+    break
+    print('v')

@@ -1,24 +1,18 @@
 BISHOP_RELEVEANT_BITS = [
-    6, 5, 5, 5, 5, 5, 5, 6,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 9, 9, 7, 5, 5,
-    5, 5, 7, 7, 7, 7, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5,
-    6, 5, 5, 5, 5, 5, 5, 6,
+    6,5,5,5,5,5,5,6, 5,5,5,5,5,5,5,5,
+    5,5,7,7,7,7,5,5, 5,5,10,9,9,7,5,5,
+    5,5,10,9,9,7,5,5, 5,5,7,7,7,7,5,5,
+    5,5,5,5,5,5,5,5, 6,5,5,5,5,5,5,6,
 ]
 
 ROOK_RELEVEANT_BITS = [
-    12, 11, 11, 11, 11, 11, 11, 12,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    11, 10, 10, 10, 10, 10, 10, 11,
-    12, 11, 11, 11, 11, 11, 11, 12,
+    12,11,11,11,11,11,11,12, 11,10,10,10,10,10,10,11,
+    11,10,10,10,10,10,10,11, 11,10,10,10,10,10,10,11,
+    11,10,10,10,10,10,10,11, 11,10,10,10,10,10,10,11,
+    11,10,10,10,10,10,10,11, 12,11,11,11,11,11,11,12,
 ]
+
+
 
 
 ROOK_MAGIC = [
@@ -233,7 +227,6 @@ def build_bishop_table(square: int) -> list[int]:
     rbits = BISHOP_RELEVEANT_BITS[square]
     size = 1 << rbits
     table = [0] * size
-
     for occ in submasks(mask):
         idx = get_magic_index(occ, BISHOP_MAGIC[square], rbits)
         table[idx] = bishop_attack(square, occ)
@@ -257,4 +250,4 @@ KING_TABLE = [precompute_king_attacks(sq) for sq in range(64)]
 KNIGHT_TABLE = [precompute_knight_attacks(sq) for sq in range(64)]
 ROOK_TABLE = [build_rook_table(sq) for sq in range(64)]
 BISHOP_TABLE = [build_bishop_table(sq) for sq in range(64)]
-# print(ROOK_TABLE)
+# build_bishop_table(26)
