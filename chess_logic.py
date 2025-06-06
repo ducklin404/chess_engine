@@ -6,7 +6,7 @@ from move_precalculate import *
 class ChessLogic:
     def __init__(self):
         self.side = 'white'
-        self.en_passen = None
+        self.en_passant = None
         self.white_king_castle = True
         self.black_king_castle = True
         self.black_queen_castle = True
@@ -36,7 +36,7 @@ class ChessLogic:
                 
         return piece_bb
     
-    def push(self, from_sq, to_sq, piece, captured = None):
+    def push(self, from_sq, to_sq, piece, captured = None, is_en_passant = False, promote = None):
         if piece == 5:
             self.white_king_castle = False
             self.white_queen_castle = False
@@ -51,6 +51,22 @@ class ChessLogic:
             self.black_queen_castle = False
         elif from_sq == 63 or to_sq == 63:
             self.black_king_castle = False
+            
+        if piece == 0 and (to_sq - from_sq) == 16:
+            self.en_passant = from_sq + 8
+        elif piece == 6 and (from_sq - to_sq) == 16:
+            self.en_passant = from_sq - 8
+        else:
+            self.en_passant = None
+        
+        if promote:
+            if piece == 0 and 56 <= to_sq <= 63:
+                self.bb[0] &= ~(1 << to_sq)
+                self.bb[promote] |= 1 << to_sq
+            else:
+                self.bb[6] &= ~(1 << to_sq)
+                self.bb[promote] |= 1 << to_sq
+        
     
         from_bb = ~(1 << from_sq) & 0xFFFFFFFFFFFFFFFF
         to_bb = 1 << to_sq
@@ -58,6 +74,13 @@ class ChessLogic:
         self.bb[piece] |= to_bb
         if captured:
             self.bb[captured] &= (~to_bb) & 0xFFFFFFFFFFFFFFFF
+
+        if is_en_passant:
+            if piece == 0:
+                self.bb[6] &= ~ (1 << to_sq - 8)
+            else:
+                self.bb[0] &= ~(1 << to_sq + 8)
+            
         # white 0-0
         if piece == 5 and from_sq == 4 and to_sq == 6:
             self.bb[3] &= ~(1 << 7)      # clear h1
@@ -127,6 +150,18 @@ class ChessLogic:
             if row < 7:
                 if (1 << (row + 1)*8 + col) & ~all_occ:
                     moves |= 1 << (row + 1)*8 +col
+            
+            # en passen
+            if self.en_passant is not None:
+                if row == 4:
+                    if col + 1 <= 7:
+                        if (row + 1)*8 + (col + 1) == self.en_passant:
+                            moves |= 1 << self.en_passant
+                    if col -1 >= 0:
+                        if (row + 1)*8 + (col - 1) == self.en_passant:
+                            moves |= 1 << self.en_passant
+                    
+                     
         else:
             # calculate the attack squares
             moves |= white_occ & BLACK_PAWN_ATTACK_TABLE[sq]
@@ -139,6 +174,16 @@ class ChessLogic:
             if row > 0:
                 if (1 << (row - 1)*8 + col) & ~all_occ:
                     moves |= 1 << (row - 1)*8 +col
+                    
+            # en passen
+            if self.en_passant:
+                if row == 3:
+                    if col + 1 <= 7:
+                        if (row - 1)*8 + (col + 1) == self.en_passant:
+                            moves |= 1 << self.en_passant
+                    if col -1 >= 0:
+                        if (row - 1)*8 + (col - 1) == self.en_passant:
+                            moves |= 1 << self.en_passant
 
         return moves
     

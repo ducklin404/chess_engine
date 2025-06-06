@@ -58,13 +58,19 @@ def draw_start_square(surface, cell_size, x, y):
     
 
 
-
 def draw_can_move_square(surface, cell_size, x, y):
-    RADIUS = int(cell_size*0.3)
+    RADIUS = int(cell_size*0.15)
     centre = (cell_size // 2, cell_size // 2)
     circle_surf = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
     pygame.draw.circle(circle_surf, movable_color, centre, RADIUS)
-    pygame.draw.circle(circle_surf, (0, 0, 0, 0), centre, RADIUS*0.7)
+    surface.blit(circle_surf, (x * cell_size , y * cell_size))
+
+def draw_can_capture_square(surface, cell_size, x, y):
+    RADIUS = int(cell_size*0.5)
+    centre = (cell_size // 2, cell_size // 2)
+    circle_surf = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+    pygame.draw.circle(circle_surf, movable_color, centre, RADIUS)
+    pygame.draw.circle(circle_surf, (0, 0, 0, 0), centre, RADIUS*0.8)
     surface.blit(circle_surf, (x * cell_size , y * cell_size))
 
 def bit_indices(n: int):
@@ -76,11 +82,13 @@ def bit_indices(n: int):
         n >>= 1            # drop LSB
         idx += 1
 
-def draw_movable_squares(surface, cell_size, moves):
+def draw_movable_squares(surface, board, cell_size, moves):
     for i in bit_indices(moves):
         row, col = divmod(i, 8)
-        draw_can_move_square(surface, cell_size, col, 7-row)
-
+        if board[7-row][col] == '--':
+            draw_can_move_square(surface, cell_size, col, 7-row)
+        else:
+            draw_can_capture_square(surface, cell_size, col, 7-row)
 def draw_labels(surface, font, side, cell_size, label_offset):
     for i in range(8):
         file_color = DARK if i % 2 == 0 else LIGHT
@@ -163,6 +171,7 @@ def main():
                 
             elif event.type == pygame.MOUSEBUTTONUP:
                 if dragging:
+                    is_en_passant = False
                     mx, my = pygame.mouse.get_pos()
                     dragging = False
                     row = (my // CELL_SIZE)
@@ -173,9 +182,21 @@ def main():
                                 captured = PIECE_TO_INDEX[board_state[row][col]]
                             else:
                                 captured = None
+                            # check for en passant
+                            if dragging_piece == 'wp' and drag_start[0] == 3:
+                                if col != drag_start[1]:
+                                    if board_state[row][col] == '--':
+                                        is_en_passant = True
+                                        board_state[3][col]  = '--'
+                            elif dragging_piece == 'bp' and drag_start[0] == 4:
+                                if col != drag_start[1]:
+                                    if board_state[row][col] == '--':
+                                        is_en_passant = True
+                                        board_state[4][col]  = '--'
+                                        
                             board_state[row][col] = dragging_piece
                             board_state[drag_start[0]][drag_start[1]] = '--'
-                            chess.push((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col, PIECE_TO_INDEX[dragging_piece], captured)
+                            chess.push((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col, PIECE_TO_INDEX[dragging_piece], captured, is_en_passant=is_en_passant)
                             if dragging_piece == 'wk' and drag_start[1] == 4 and col == 6:
                                 print('aaa')
                                 board_state[7][7] = '--'
@@ -194,6 +215,8 @@ def main():
                                 side = 'black'
                             else:
                                 side = 'white'
+                        
+                            
                                 
                             moves = chess.find_available_moves(chess.bb, side)
                             
@@ -209,7 +232,7 @@ def main():
             mx, my = pygame.mouse.get_pos()
             row = (my // CELL_SIZE)
             col = (mx // CELL_SIZE)
-            draw_movable_squares(board, CELL_SIZE, moves[(7-drag_start[0])*8 + drag_start[1]])
+            draw_movable_squares(board, board_state,CELL_SIZE, moves[(7-drag_start[0])*8 + drag_start[1]])
             draw_start_square(board, CELL_SIZE, drag_start[1], drag_start[0])
             if 0 <= row <= 7 and 0 <= col <= 7:
                 if (1 << (7-row)*8 + col) & (moves[(7-drag_start[0])*8 + drag_start[1]]):
