@@ -246,10 +246,8 @@ def build_between_mask(from_sq, to_sq):
     to_x, to_y = divmod(to_sq, 8)
 
 
-WHITE_PAWN_ATTACK_TABLE = [
-    precompute_pawn_attacks(sq, 'white') for sq in range(64)]
-BLACK_PAWN_ATTACK_TABLE = [
-    precompute_pawn_attacks(sq, 'black') for sq in range(64)]
+WHITE_PAWN_ATTACK_TABLE = [precompute_pawn_attacks(sq, 'white') for sq in range(64)]
+BLACK_PAWN_ATTACK_TABLE = [precompute_pawn_attacks(sq, 'black') for sq in range(64)]
 ROOK_RELEVANT_MASK = [rook_mask(sq) for sq in range(64)]
 BISHOP_RELEVANT_MASK = [bishop_mask(sq) for sq in range(64)]
 KING_TABLE = [precompute_king_attacks(sq) for sq in range(64)]

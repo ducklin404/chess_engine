@@ -1,6 +1,8 @@
 init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 from move_precalculate import *
 
+
+
 class ChessLogic:
     def __init__(self):
         self.side = 'white'
@@ -11,9 +13,7 @@ class ChessLogic:
         self.white_queen_castle = True
         self.bb = self.fen_to_bitboard(init_fen)
 
-    def push_move(from_sq, to_sq, piece):
-        pass
-        
+
         
     def fen_to_bitboard(self, fen: str):
         char_to_index = {
@@ -36,8 +36,22 @@ class ChessLogic:
                 
         return piece_bb
     
-    def push(self, from_sq, to_sq, piece):
-        pass
+    def push(self, from_sq, to_sq, piece, captured = None):
+        from_bb = ~(1 << from_sq) & 0xFFFFFFFFFFFFFFFF
+        to_bb = 1 << to_sq
+        print(bin(to_bb))
+        print(bin(self.bb[piece]))
+        self.bb[piece] &= from_bb
+        self.bb[piece] |= to_bb
+        print(bin(self.bb[piece]))
+        if captured:
+            self.bb[captured] &= (~to_bb) & 0xFFFFFFFFFFFFFFFF
+            
+        if self.side == 'white':
+            self.side = 'black'
+        else:
+            self.side = 'white'
+
     
     def build_occ(self, WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK):
         white_occ = WP | WN | WB | WR | WQ | WK
@@ -114,7 +128,7 @@ class ChessLogic:
             for i in range(0, 64):
                 if black_occ & (1 << i):
                     if _BP & (1 << i):
-                        moves[i] = self.calculate_pawn_moves(all_occ, white_occ, black_occ, side)
+                        moves[i] = self.calculate_pawn_moves(i, all_occ, white_occ, black_occ, side)
                     elif _BN & (1 << i):
                         moves[i] = KNIGHT_TABLE[i] & ~black_occ
                     elif _BK & (1 << i):

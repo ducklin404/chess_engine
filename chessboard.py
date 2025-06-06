@@ -27,6 +27,10 @@ INITIAL_POSITION = [
     ["wr", "wn", "wb", "wq", "wk", "wb", "wn", "wr"]
 ]
 
+PIECE_TO_INDEX = {
+            'wp': 0, 'wn': 1, 'wb': 2, 'wr': 3, 'wq': 4, 'wk': 5,
+            'bp': 6, 'bn': 7, 'bb': 8, 'br': 9, 'bq': 10, 'bk': 11
+        }
 
 
 def load_piece_images(cell_size):
@@ -52,7 +56,9 @@ def draw_start_square(surface, cell_size, x, y):
     hovered_surface.fill(start_square_color)
     surface.blit(hovered_surface, (x * cell_size , y * cell_size))
     
-    
+
+
+
 def draw_can_move_square(surface, cell_size, x, y):
     RADIUS = int(cell_size*0.3)
     centre = (cell_size // 2, cell_size // 2)
@@ -132,7 +138,7 @@ def main():
         board.fill((255, 255, 255))
         draw_board(board, CELL_SIZE)
         draw_labels(board, font, side, CELL_SIZE, LABEL_OFFSET)
-        draw_pieces(board, board_state, piece_images, side, CELL_SIZE)
+        draw_pieces(board, board_state, piece_images, 'white', CELL_SIZE)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -163,8 +169,21 @@ def main():
                     col = (mx // CELL_SIZE)
                     if 0 <= row <= 7 and 0 <= col <= 7:
                         if (1 << (7-row) * 8 + col) & moves[(7-drag_start[0])*8 + drag_start[1]]:
+                            if board_state[row][col] != '--':
+                                captured = PIECE_TO_INDEX[board_state[row][col]]
+                            else:
+                                captured = None
                             board_state[row][col] = dragging_piece
                             board_state[drag_start[0]][drag_start[1]] = '--'
+                            chess.push((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col, PIECE_TO_INDEX[dragging_piece], captured)
+                            
+                            if side == 'white':
+                                side = 'black'
+                            else:
+                                side = 'white'
+                                
+                            moves = chess.find_available_moves(chess.bb, side)
+                            
                         else:
                             board_state[drag_start[0]][drag_start[1]] = dragging_piece
                     else:
