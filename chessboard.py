@@ -176,7 +176,20 @@ def main():
                             board_state[row][col] = dragging_piece
                             board_state[drag_start[0]][drag_start[1]] = '--'
                             chess.push((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col, PIECE_TO_INDEX[dragging_piece], captured)
-                            
+                            if dragging_piece == 'wk' and drag_start[1] == 4 and col == 6:
+                                print('aaa')
+                                board_state[7][7] = '--'
+                                board_state[7][5] = 'wr'
+                                print(board_state[7])
+                            elif dragging_piece == 'wk' and drag_start[1] == 4 and col == 2:
+                                board_state[7][0] = '--'
+                                board_state[7][3] = 'wr'
+                            elif dragging_piece == 'bk' and drag_start[1] == 4 and col == 6:
+                                board_state[0][7] = '--'
+                                board_state[0][5] = 'wr'
+                            elif dragging_piece == 'bk' and drag_start[1] == 4 and col == 2:
+                                board_state[0][0] = '--'
+                                board_state[0][3] = 'wr'
                             if side == 'white':
                                 side = 'black'
                             else:

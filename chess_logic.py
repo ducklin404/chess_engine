@@ -37,15 +37,47 @@ class ChessLogic:
         return piece_bb
     
     def push(self, from_sq, to_sq, piece, captured = None):
+        if piece == 5:
+            self.white_king_castle = False
+            self.white_queen_castle = False
+        elif piece == 11:
+            self.black_king_castle = False
+            self.black_queen_castle = False
+        if from_sq == 0 or captured == 0:
+            self.white_queen_castle = False
+        elif from_sq == 7 or to_sq == 7:
+            self.white_king_castle = False
+        elif from_sq == 56 or captured == 56:
+            self.black_queen_castle = False
+        elif from_sq == 63 or to_sq == 63:
+            self.black_king_castle = False
+    
         from_bb = ~(1 << from_sq) & 0xFFFFFFFFFFFFFFFF
         to_bb = 1 << to_sq
-        print(bin(to_bb))
-        print(bin(self.bb[piece]))
         self.bb[piece] &= from_bb
         self.bb[piece] |= to_bb
-        print(bin(self.bb[piece]))
         if captured:
             self.bb[captured] &= (~to_bb) & 0xFFFFFFFFFFFFFFFF
+        # white 0-0
+        if piece == 5 and from_sq == 4 and to_sq == 6:
+            self.bb[3] &= ~(1 << 7)      # clear h1
+            self.bb[3] |=  (1 << 5)      # set  f1
+
+        # white 0-0-0
+        elif piece == 5 and from_sq == 4 and to_sq == 2:
+            self.bb[3] &= ~(1 << 0)      # clear a1
+            self.bb[3] |=  (1 << 3)      # set  d1
+
+        # black 0-0
+        elif piece == 11 and from_sq == 60 and to_sq == 62:
+            self.bb[9] &= ~(1 << 63)     # clear h8
+            self.bb[9] |=  (1 << 61)     # set  f8
+
+        # black 0-0-0
+        elif piece == 11 and from_sq == 60 and to_sq == 58:
+            self.bb[9] &= ~(1 << 56)     # clear a8
+            self.bb[9] |=  (1 << 59)     # set  d8
+            
             
         if self.side == 'white':
             self.side = 'black'
@@ -59,6 +91,26 @@ class ChessLogic:
         all_occ = white_occ | black_occ
         empty_occ = 0xFFFFFFFFFFFFFFFF & (~all_occ)
         return white_occ, black_occ, all_occ, empty_occ
+    
+    def calculate_king_moves(self, sq, white_occ, all_occ, side = 'white'):
+        moves = KING_TABLE[sq] & ~white_occ
+        if side == 'white':
+            if self.white_king_castle:
+                if not WHITE_KING_EMPTY & all_occ:
+                    moves |= 0b1000000
+            if self.white_queen_castle:
+                if not WHITE_QUEEN_EMPTY & all_occ:
+                    moves |= 0b10
+        else:
+            if self.black_king_castle:
+                if not BLACK_KING_EMPTY & all_occ:
+                    moves |= 0b1000000 << 56    
+            if self.black_queen_castle:
+                if not BLACK_QUEEN_EMPTY & all_occ:
+                    moves |= 0b10 << 56
+            
+        return moves
+    
     
     def calculate_pawn_moves(self, sq, all_occ, white_occ, black_occ, side = 'white'):
         moves = 0
@@ -104,7 +156,7 @@ class ChessLogic:
                     elif _WN & (1 << i):
                         moves[i] = KNIGHT_TABLE[i] & ~white_occ
                     elif _WK & (1 << i):
-                        moves[i] = KING_TABLE[i] & ~white_occ
+                        moves[i] = self.calculate_king_moves(i, white_occ, all_occ, side)
                     elif _WR & (1 << i):
                         relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
                         magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
@@ -132,7 +184,7 @@ class ChessLogic:
                     elif _BN & (1 << i):
                         moves[i] = KNIGHT_TABLE[i] & ~black_occ
                     elif _BK & (1 << i):
-                        moves[i] = KING_TABLE[i] & ~black_occ
+                        moves[i] = self.calculate_king_moves(i, black_occ, all_occ, side)
                     elif _BR & (1 << i):
                         relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
                         magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
