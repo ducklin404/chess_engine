@@ -1,3 +1,26 @@
+BISHOP_RELEVEANT_BITS = [
+    6, 5, 5, 5, 5, 5, 5, 6,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 9, 9, 7, 5, 5,
+    5, 5, 7, 7, 7, 7, 5, 5,
+    5, 5, 5, 5, 5, 5, 5, 5,
+    6, 5, 5, 5, 5, 5, 5, 6,
+]
+
+ROOK_RELEVEANT_BITS = [
+    12, 11, 11, 11, 11, 11, 11, 12,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    11, 10, 10, 10, 10, 10, 10, 11,
+    12, 11, 11, 11, 11, 11, 11, 12,
+]
+
+
 ROOK_MAGIC = [
     0x8A80104000800020, 0x0140002000100040, 0x02801880A0017001,
     0x0100081001000420, 0x0200020010080420, 0x03001C0002010008,
@@ -196,7 +219,7 @@ def submasks(mask: int):
 
 def build_rook_table(square: int) -> list[int]:
     mask   = rook_mask(square)
-    rbits  = mask.bit_count()             
+    rbits  = ROOK_RELEVEANT_BITS[square]            
     size   = 1 << rbits
     table  = [0] * size
 
@@ -209,7 +232,7 @@ def build_rook_table(square: int) -> list[int]:
 
 def build_bishop_table(square: int) -> list[int]:
     mask = bishop_mask(square)
-    rbits  = mask.bit_count()             
+    rbits  = BISHOP_RELEVEANT_BITS[square]
     size   = 1 << rbits
     table  = [0] * size
     
@@ -236,3 +259,5 @@ KNIGHT_TABLE = [precompute_knight_attacks(sq) for sq in range(64)]
 ROOK_TABLE = [build_rook_table(sq) for sq in range(64)]   
 BISHOP_TABLE = [build_bishop_table(sq) for sq in range(64)]             
 # print(ROOK_TABLE)
+
+

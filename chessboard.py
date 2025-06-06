@@ -1,5 +1,9 @@
 import pygame
 from pygame import Surface
+from chess_logic import *
+
+
+chess = ChessLogic()
 
 # --- Config and Constants ---
 CELL_SIZE = 100
@@ -82,6 +86,8 @@ def main():
     board_state = INITIAL_POSITION
     dragging = False
     dragging_piece = None
+    moves = chess.find_available_moves(chess.bb, side)
+    print(moves)
     drag_start = (None, None)
 
     # Prepare the board surface
@@ -97,7 +103,6 @@ def main():
         draw_board(board, CELL_SIZE)
         draw_labels(board, font, side, CELL_SIZE, LABEL_OFFSET)
         draw_pieces(board, board_state, piece_images, side, CELL_SIZE)
-        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -106,10 +111,14 @@ def main():
                 mx, my = pygame.mouse.get_pos()
                 row = (my // CELL_SIZE)
                 col = (mx // CELL_SIZE)
+                
                 if row < 0 or row > 7 or col < 0 or col > 7:
                     continue
                 if board_state[row][col] == '--':
                     continue
+                if not moves[(7-row)*8 + col]:
+                    continue
+                
                 dragging_piece = board_state[row][col]
                 board_state[row][col] = '--'
                 dragging = True
@@ -123,16 +132,23 @@ def main():
                     row = (my // CELL_SIZE)
                     col = (mx // CELL_SIZE)
                     if 0 <= row <= 7 and 0 <= col <= 7:
-                        board_state[row][col] = dragging_piece
-                        
-                            
+                        if (1 << (7-row) * 8 + col) & moves[(7-drag_start[0])*8 + drag_start[1]]:
+                            board_state[row][col] = dragging_piece
+                        else:
+                            board_state[drag_start[0]][drag_start[1]] = dragging_piece
+                    else:
+                        board_state[drag_start[0]][drag_start[1]] = dragging_piece
+                    
+                    drag_start = (None, None)
                     dragging_piece = None
 
         if dragging:
             mx, my = pygame.mouse.get_pos()
             row = (my // CELL_SIZE)
             col = (mx // CELL_SIZE)
-            draw_hovered(board, CELL_SIZE, col, row)
+            if 0 <= row <= 7 and 0 <= col <= 7:
+                if (1 << (7-row)*8 + col) & (moves[(7-drag_start[0])*8 + drag_start[1]]):
+                    draw_hovered(board, CELL_SIZE, col, row)
             board.blit(piece_images[dragging_piece], (mx - piece_images[dragging_piece].get_width() // 2, my - piece_images[dragging_piece].get_height() // 2))
                 
         screen.blit(board, board.get_rect())

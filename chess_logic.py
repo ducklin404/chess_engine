@@ -2,6 +2,17 @@ init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 from move_precalculate import *
 
 class ChessLogic:
+    def __init__(self):
+        self.side = 'white'
+        self.en_passen = None
+        self.white_king_castle = True
+        self.black_king_castle = True
+        self.black_queen_castle = True
+        self.white_queen_castle = True
+        self.bb = self.fen_to_bitboard(init_fen)
+
+    def push_move(from_sq, to_sq, piece):
+        pass
         
         
     def fen_to_bitboard(self, fen: str):
@@ -79,19 +90,19 @@ class ChessLogic:
                         moves[i] = KING_TABLE[i] & ~white_occ
                     elif _WR & (1 << i):
                         relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                        magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], relevant_occ.bit_count())
-                        moves[i] = ROOK_TABLE[i][magic_index] & ~all_occ
+                        magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
+                        moves[i] = ROOK_TABLE[i][magic_index] & ~white_occ
                     elif _WB & (1 << i):
                         relevant_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                        magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], relevant_occ.bit_count())
+                        magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
                         moves[i] = BISHOP_TABLE[i][magic_index] & ~white_occ
                     elif _WQ & (1 << i):
                         relevant_rook_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                        rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], relevant_rook_occ.bit_count())
+                        rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
                         rook_moves = ROOK_TABLE[i][rook_magic_index] & ~white_occ
                         
                         relevant_bishop_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                        bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], relevant_bishop_occ.bit_count())
+                        bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
                         bishop_moves = BISHOP_TABLE[i][bishop_magic_index] & ~white_occ
                         
                         moves[i] = rook_moves | bishop_moves
@@ -107,19 +118,19 @@ class ChessLogic:
                         moves[i] = KING_TABLE[i] & ~black_occ
                     elif _BR & (1 << i):
                         relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                        magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], relevant_occ.bit_count())
+                        magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
                         moves[i] = ROOK_TABLE[i][magic_index] & ~black_occ
                     elif _BB & (1 << i):
                         relevant_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                        magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], relevant_occ.bit_count())
+                        magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
                         moves[i] = BISHOP_TABLE[i][magic_index] & ~black_occ
                     elif _BQ & (1 << i):
                         relevant_rook_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                        rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], relevant_rook_occ.bit_count())
+                        rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
                         rook_moves = ROOK_TABLE[i][rook_magic_index] & ~black_occ
                         
                         relevant_bishop_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                        bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], relevant_bishop_occ.bit_count())
+                        bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
                         bishop_moves = BISHOP_TABLE[i][bishop_magic_index] & ~black_occ
                         
                         moves[i] = rook_moves | bishop_moves
