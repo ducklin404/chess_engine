@@ -36,6 +36,9 @@ class ChessLogic:
                 
         return piece_bb
     
+    def push(self, from_sq, to_sq, piece):
+        pass
+    
     def build_occ(self, WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK):
         white_occ = WP | WN | WB | WR | WQ | WK
         black_occ = BP | BN | BB | BR | BQ | BK

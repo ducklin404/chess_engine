@@ -12,6 +12,8 @@ BOARD_SIZE = CELL_SIZE * 8
 DARK = (118, 150,  86)
 LIGHT = (238, 238, 210)
 hovered_color = (144, 238, 144, 128)
+start_square_color = (120, 200, 100, 128)
+movable_color = (120, 200, 144, 100)
 LETTERS = 'abcdefgh'
 PIECES = ['wp', 'bp', 'wn', 'bn', 'wb', 'bb', 'wr', 'br', 'wq', 'bq', 'wk', 'bk']
 INITIAL_POSITION = [
@@ -44,6 +46,34 @@ def draw_hovered(surface, cell_size, x, y):
     hovered_surface = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
     hovered_surface.fill(hovered_color)
     surface.blit(hovered_surface, (x * cell_size , y * cell_size))
+    
+def draw_start_square(surface, cell_size, x, y):
+    hovered_surface = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+    hovered_surface.fill(start_square_color)
+    surface.blit(hovered_surface, (x * cell_size , y * cell_size))
+    
+    
+def draw_can_move_square(surface, cell_size, x, y):
+    RADIUS = int(cell_size*0.3)
+    centre = (cell_size // 2, cell_size // 2)
+    circle_surf = pygame.Surface((cell_size, cell_size), pygame.SRCALPHA)
+    pygame.draw.circle(circle_surf, movable_color, centre, RADIUS)
+    pygame.draw.circle(circle_surf, (0, 0, 0, 0), centre, RADIUS*0.7)
+    surface.blit(circle_surf, (x * cell_size , y * cell_size))
+
+def bit_indices(n: int):
+    """Yield positions of set bits, least-significant bit = position 0."""
+    idx = 0
+    while n:
+        if n & 1:          # check LSB
+            yield idx
+        n >>= 1            # drop LSB
+        idx += 1
+
+def draw_movable_squares(surface, cell_size, moves):
+    for i in bit_indices(moves):
+        row, col = divmod(i, 8)
+        draw_can_move_square(surface, cell_size, col, 7-row)
 
 def draw_labels(surface, font, side, cell_size, label_offset):
     for i in range(8):
@@ -120,7 +150,7 @@ def main():
                     continue
                 
                 dragging_piece = board_state[row][col]
-                board_state[row][col] = '--'
+                # board_state[row][col] = '--'
                 dragging = True
                 drag_start = (row, col)
 
@@ -134,6 +164,7 @@ def main():
                     if 0 <= row <= 7 and 0 <= col <= 7:
                         if (1 << (7-row) * 8 + col) & moves[(7-drag_start[0])*8 + drag_start[1]]:
                             board_state[row][col] = dragging_piece
+                            board_state[drag_start[0]][drag_start[1]] = '--'
                         else:
                             board_state[drag_start[0]][drag_start[1]] = dragging_piece
                     else:
@@ -146,6 +177,8 @@ def main():
             mx, my = pygame.mouse.get_pos()
             row = (my // CELL_SIZE)
             col = (mx // CELL_SIZE)
+            draw_movable_squares(board, CELL_SIZE, moves[(7-drag_start[0])*8 + drag_start[1]])
+            draw_start_square(board, CELL_SIZE, drag_start[1], drag_start[0])
             if 0 <= row <= 7 and 0 <= col <= 7:
                 if (1 << (7-row)*8 + col) & (moves[(7-drag_start[0])*8 + drag_start[1]]):
                     draw_hovered(board, CELL_SIZE, col, row)
