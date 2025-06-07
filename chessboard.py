@@ -188,7 +188,6 @@ def main():
                     mx, my = pygame.mouse.get_pos()
                     row = (my // CELL_SIZE)
                     col = (mx // CELL_SIZE)
-                    
                     if row < 0 or row > 7 or col < 0 or col > 7:
                         continue
                     if board_state[row][col] == '--':

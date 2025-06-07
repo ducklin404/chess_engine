@@ -1,7 +1,1 @@
-a=  1
-
-if a:
-    print('a')
-    print('n')
-    break
-    print('v')
+print(0b01.bit_count())

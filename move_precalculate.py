@@ -232,10 +232,49 @@ def build_bishop_table(square: int) -> list[int]:
     return table
 
 
-def build_between_mask(from_sq, to_sq):
-    from_x, from_y = divmod(from_sq, 8)
-    to_x, to_y = divmod(to_sq, 8)
+def build_between_diagonal(from_sq, to_sq):
+    diagonal = 0
+    from_row, from_col = divmod(from_sq, 8)
+    to_row, to_col = divmod(to_sq, 8)
+    offset_row = to_row - from_row
+    offset_col = to_col - from_col
+    step_row = 1 if offset_row > 0 else -1
+    step_col = 1 if offset_col > 0 else -1
+    if abs(offset_row) != abs(offset_col):
+        return 0
+    for i in range(0, abs(offset_row)):
+        diagonal |= 1 << (from_row + step_row*i)*8 + (from_col + step_col*i)
 
+    return diagonal
+
+def build_between_line(from_sq, to_sq):
+    line = 0
+    from_row, from_col = divmod(from_sq, 8)
+    to_row, to_col = divmod(to_sq, 8)
+    offset_row = to_row - from_row
+    offset_col = to_col - from_col
+    if offset_row != 0 and offset_col != 0:
+        return 0
+    if offset_row == 0:
+        step_row = 0
+        step_col = 1 if offset_col > 0 else -1
+    else:
+        step_row = 1 if offset_row > 0 else -1
+        step_col = 0
+    
+    for i in range(0, abs(offset_row) - 1):
+        line |= 1 << (from_row + step_row*i)*8 + (from_col + step_col*i)
+        
+    return line
+
+BISHOP_BETWEEN_MASK = [
+    [build_between_diagonal(b_sq, k_sq) for k_sq in range(64)]
+    for b_sq in range(64)
+]
+ROOK_BETWEEN_MASK = [
+    [build_between_line(r_sq, k_sq) for k_sq in range(64)]
+    for r_sq in range(64)
+]
 
 WHITE_KING_EMPTY = 0x0000000000000060  # f1, g1
 WHITE_QUEEN_EMPTY = 0x000000000000000E  # b1, c1, d1
