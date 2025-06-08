@@ -1,3 +1,21 @@
+from dataclasses import dataclass
+
+@dataclass
+class HistoryEntry:
+    encoded_move: int        # the 16-bit word you just played
+    captured: int            # 0-11 or NO_PIECE
+    prev_ep: int | None      # en-passant target before the move
+    castle_mask: int         # 4 bits: WK WQ BK BQ
+    halfmove_clock: int      # for the 50-move rule
+    zobrist: int             # optional, 0 if you don’t hash
+    
+    
+def pack_castle(wk,qk,bk,bq) -> int:
+    return (wk<<0) | (qk<<1) | (bk<<2) | (bq<<3)
+
+def unpack_castle(mask: int):
+    return bool(mask&1), bool(mask&2), bool(mask&4), bool(mask&8)
+
 BISHOP_RELEVEANT_BITS = [
     6, 5, 5, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 5, 5,
     5, 5, 7, 7, 7, 7, 5, 5, 5, 5, 10, 9, 9, 7, 5, 5,
@@ -63,6 +81,63 @@ BISHOP_MAGIC = [
     0x0004010040041000, 0x0000400080100080, 0x0040002040002000,
     0x0000100800200080, 0x0000020080400080, 0x0000100204000200,
     0x0000010080200080, 0x0000200040080010, 0x0000800080010000,
+]
+
+init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+RANK_1 = 0x00000000000000FF
+RANK_8 = 0xFF00000000000000
+
+SQ_MASK = [1 << i for i in range(64)]
+
+NO_PIECE = -1
+
+WHITE_PAWN = 0
+WHITE_KNIGHT = 1
+WHITE_BISHOP = 2
+WHITE_ROOK = 3
+WHITE_QUEEN = 4
+WHITE_KING = 5
+
+BLACK_PAWN = 6
+BLACK_KNIGHT = 7
+BLACK_BISHOP = 8
+BLACK_ROOK = 9
+BLACK_QUEEN = 10
+BLACK_KING = 11
+
+PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING = range(6)
+
+WHITE = 0
+BLACK = 1
+
+QUIET          = 0x0     # normal non-capture
+DOUBLE_PUSH    = 0x1     # pawn two-square advance
+CASTLE_KING    = 0x2
+CASTLE_QUEEN   = 0x3
+
+CAPTURE        = 0x4     # ordinary capture           (flag | 4)
+EN_PASSANT     = 0x5     # pawn takes en-passant
+
+PROMO_N        = 0x8     # promote to knight          (flag | 8)
+PROMO_B        = 0x9     # promote to bishop
+PROMO_R        = 0xA     # promote to rook
+PROMO_Q        = 0xB     # promote to queen
+PCAP_N         = 0xC     # capture & promote knight   (flag | 0xC)
+PCAP_B         = 0xD
+PCAP_R         = 0xE
+PCAP_Q         = 0xF
+
+
+INITIAL_PIECE_AT = [
+    BLACK_ROOK,   BLACK_KNIGHT, BLACK_BISHOP, BLACK_QUEEN, BLACK_KING, BLACK_BISHOP, BLACK_KNIGHT, BLACK_ROOK,   # 8th rank
+    BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,  BLACK_PAWN, BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,   # 7th rank
+    NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 6th rank
+    NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 5th rank
+    NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 4th rank
+    NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 3rd rank
+    WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,  WHITE_PAWN, WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,   # 2nd rank
+    WHITE_ROOK,   WHITE_KNIGHT, WHITE_BISHOP, WHITE_QUEEN, WHITE_KING, WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK    # 1st rank
 ]
 
 
@@ -275,6 +350,17 @@ ROOK_BETWEEN_MASK = [
     [build_between_line(r_sq, k_sq) for k_sq in range(64)]
     for r_sq in range(64)
 ]
+
+def encode_move(from_sq: int, to_sq: int, flag: int) -> int:
+    """Return 16-bit move word (0 ≤ flag ≤ 15)."""
+    return (from_sq & 0x3F) | ((to_sq & 0x3F) << 6) | ((flag & 0xF) << 12)
+
+def decode_move(move: int):
+    """Return tuple (from_sq, to_sq, flag) from 16-bit word."""
+    from_sq =  move        & 0x3F
+    to_sq   = (move >> 6)  & 0x3F
+    flag    =  move >> 12        # already only 4 bits
+    return from_sq, to_sq, flag
 
 WHITE_KING_EMPTY = 0x0000000000000060  # f1, g1
 WHITE_QUEEN_EMPTY = 0x000000000000000E  # b1, c1, d1

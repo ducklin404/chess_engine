@@ -1,1 +1,3 @@
-print(0b01.bit_count())
+moving_piece = 6
+
+print(moving_piece & 7   )

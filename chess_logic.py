@@ -1,5 +1,4 @@
-init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-from move_precalculate import *
+from compute_helper import *
 
 
 
@@ -11,26 +10,18 @@ class ChessLogic:
         self.black_king_castle = True
         self.black_queen_castle = True
         self.white_queen_castle = True
+        self.history = []
+        self.piece_at = INITIAL_PIECE_AT
         self.bb = self.fen_to_bitboard(init_fen)
+        self.build_occ()
 
-    def encode_move(self, from_sq, to_sq, promo= 0, captured = 0, special = 0):
-        _encoded_move = from_sq | (to_sq << 6) | (promo << 12) | (captured << 14) | (special << 15)
-        return _encoded_move 
     
-    def decode_move(self, encoded_move):
-        from_sq = encoded_move & 0b111111
-        to_sq = (encoded_move >> 6) &0b111111
-        promo = (encoded_move >> 12) & 0b11
-        captured = (encoded_move >> 14) & 0b1
-        special = (encoded_move >> 15) & 0b1    
-        return from_sq, to_sq, promo, captured, special
+    
         
     def fen_to_bitboard(self, fen: str):
         char_to_index = {
-            'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5,
-            'p': 6, 'n': 7, 'b': 8, 'r': 9, 'q': 10, 'k': 11
-        }
-        piece_bb = [0] * 12
+            'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5}
+        piece_bb = [[0] * 6] *2
         board = fen.split(' ')[0] 
         count = 56
         # because fen is so stupid and mark from 8th rank so the start will be 56-63
@@ -40,89 +31,194 @@ class ChessLogic:
             elif cell.isnumeric():
                 count += int(cell)
             else:
-                piece_bb[char_to_index[cell]] = piece_bb[char_to_index[cell]] | (1 << count)
+                side = 1 if cell.islower() else 0
+                piece_bb[side][char_to_index[cell]] |= (1 << count)
                 count += 1
             
                 
         return piece_bb
     
-    def push(self, from_sq, to_sq, piece, captured = None, is_en_passant = False, promote = None):
-        if piece == 5:
-            self.white_king_castle = False
-            self.white_queen_castle = False
-        elif piece == 11:
-            self.black_king_castle = False
-            self.black_queen_castle = False
-        if from_sq == 0 or captured == 0:
-            self.white_queen_castle = False
-        elif from_sq == 7 or to_sq == 7:
-            self.white_king_castle = False
-        elif from_sq == 56 or captured == 56:
-            self.black_queen_castle = False
-        elif from_sq == 63 or to_sq == 63:
-            self.black_king_castle = False
+    
+    
+    def push(self, encoded_move):
+        from_sq, to_sq, flag = decode_move(encoded_move=encoded_move)
+        
+        moving_piece = self.piece_at[from_sq]          
+        our_side = moving_piece // 6 
+        other_side = our_side ^ 1              
+        piece_code = moving_piece % 6               
+
+        from_bb = SQ_MASK[from_sq]
+        to_bb   = SQ_MASK[to_sq]
+        
+        
+
+        # 1. pull the piece off its origin square
+        self.bb[our_side][piece_code] ^= from_bb              
+        self.occ[our_side] ^= from_bb
+        self.all_occ ^= from_bb
+        self.piece_at[from_sq] = NO_PIECE
+        
+        # 2. capture or en passant processing
+        cap_piece = NO_PIECE
+        if flag & 4:
+            cap_sq = to_sq
+            if flag == 5:
+                cap_sq += -8 if our_side == WHITE else 8
+            cap_piece = self.piece_at[cap_sq] % 6
             
-        if piece == 0 and (to_sq - from_sq) == 16:
-            self.en_passant = from_sq + 8
-        elif piece == 6 and (from_sq - to_sq) == 16:
-            self.en_passant = from_sq - 8
+            
+            cap_bb = SQ_MASK[cap_sq]
+            self.bb[other_side][cap_piece] ^= cap_bb
+            self.occ[other_side] ^= cap_bb
+            self.all_occ ^= cap_bb
+            self.piece_at[cap_sq] = NO_PIECE
+            
+        # 3. adjust which piece land on to_sq and move the rook if castle
+        landing = moving_piece
+        
+        if 8 <= flag <= 15:
+            landing = (flag & 3) + 1
+        elif flag in (2, 3):
+            rk_from = (7 if flag == 2 else 0) ^ (our_side * 56)
+            rk_to   = (5 if flag == 2 else 3) ^ (our_side * 56)
+
+            rk_bb = SQ_MASK[rk_from] | SQ_MASK[rk_to]
+            
+            self.bb[ROOK + 6*our_side] ^= rk_bb
+            self.occ[our_side] ^= rk_bb
+            self.all_occ ^= rk_bb
+            self.piece_at[rk_from] = NO_PIECE
+            self.piece_at[rk_to] = ROOK + 6*our_side
+            
+        # 4. move the piece to landing
+        self.bb[our_side][landing] ^= to_bb
+        self.occ[our_side] ^= to_bb
+        self.all_occ ^= to_bb
+        self.piece_at[to_sq] = landing + our_side*6
+        
+        
+        # 5. save history to revesve later
+
+        castle_mask_before = pack_castle(
+            self.white_king_castle, self.white_queen_castle,
+            self.black_king_castle, self.black_queen_castle
+        )
+        
+        self.history.append(
+            HistoryEntry(
+                encoded_move     = encoded_move,
+                captured         = cap_piece,
+                prev_ep          = self.en_passant,
+                castle_mask      = castle_mask_before
+            )
+        )
+        
+        # 6. mark en passant and castling right
+        if piece_code == PAWN and abs(to_sq - from_sq) == 16:
+            self.en_passant = (from_sq + to_sq) // 2
         else:
             self.en_passant = None
-        from_bb = ~(1 << from_sq) & 0xFFFFFFFFFFFFFFFF
-        to_bb = 1 << to_sq
-        if promote:
-            if 56 <= to_sq <= 63:
-                self.bb[0] &= from_bb
-                self.bb[promote] |= to_bb
+        
+        if piece_code == KING:
+            if our_side == WHITE:
+                self.white_queen_castle = False
+                self.white_king_castle = False
             else:
-                self.bb[6] &= from_bb
-                self.bb[promote] |= to_bb
-        else:
-            
-            self.bb[piece] &= from_bb
-            self.bb[piece] |= to_bb
-        if captured is not None:
-            self.bb[captured] &= (~to_bb) & 0xFFFFFFFFFFFFFFFF
-
-        if is_en_passant:
-            if piece == 0:
-                self.bb[6] &= ~ (1 << to_sq - 8)
+                self.black_queen_castle = False
+                self.black_king_castle = False
+        if piece_code == ROOK:
+            if our_side == WHITE:
+                if from_sq == 0:
+                    self.white_queen_castle = False
+                elif from_sq == 7:
+                    self.white_king_castle = False
             else:
-                self.bb[0] &= ~(1 << to_sq + 8)
+                if from_sq == 56:
+                    self.black_queen_castle = False
+                elif from_sq == 63:
+                    self.black_king_castle = False
+        elif cap_piece == ROOK:
+            if   to_sq == 0:   self.white_queen_castle  = False
+            elif to_sq == 7:   self.white_king_castle   = False
+            elif to_sq == 56:  self.black_queen_castle  = False
+            elif to_sq == 63:  self.black_king_castle   = False
+                
+        
+        # 7. flip the side
+        self.side_to_move ^= 1  
+
+    def unpush(self):
+        
+        # 1. decode everything
+        last_move: HistoryEntry = self.history.pop()
+        from_sq, to_sq, flag = decode_move(last_move.encoded_move)
+        moving_piece = self.piece_at[to_sq]           
+        our_side    = moving_piece // 6
+        other_side  = our_side ^ 1
+        piece_code  = moving_piece % 6   
+        
+        from_bb = SQ_MASK[from_sq]
+        to_bb   = SQ_MASK[to_sq]   
+        
+        # 2. clear the to square
+        self.bb[our_side][piece_code] ^= to_bb
+        self.occ[our_side] ^= to_bb
+        self.all_occ       ^= to_bb
+        self.piece_at[to_sq] = NO_PIECE
+        
+        
+        # 3. restore captured piece if any
+        if last_move.captured != NO_PIECE:
+            capt_piece  = last_move.captured
+            cap_sq     = to_sq if flag != 5 else (to_sq + (-8 if our_side == WHITE else 8))
+            cap_bb     = SQ_MASK[cap_sq]
+
+            self.bb[other_side][capt_piece] ^= cap_bb
+            self.occ[other_side] ^= cap_bb
+            self.all_occ ^= cap_bb
+            self.piece_at[cap_sq] = last_move.captured + 6*other_side
             
-        # white 0-0
-        if piece == 5 and from_sq == 4 and to_sq == 6:
-            self.bb[3] &= ~(1 << 7)      # clear h1
-            self.bb[3] |=  (1 << 5)      # set  f1
+        # 4. undo promotions / castling
+        landing_code = piece_code
+        if 8 <= flag <= 15:                         # promotion
+            landing_code = PAWN
+        elif flag in (2, 3):                        # castling
+            rk_from = (7 if flag == 2 else 0) ^ (our_side * 56)
+            rk_to   = (5 if flag == 2 else 3) ^ (our_side * 56)
+            rk_bb   = SQ_MASK[rk_from] | SQ_MASK[rk_to]
 
-        # white 0-0-0
-        elif piece == 5 and from_sq == 4 and to_sq == 2:
-            self.bb[3] &= ~(1 << 0)      # clear a1
-            self.bb[3] |=  (1 << 3)      # set  d1
+            self.bb[our_side][ROOK] ^= rk_bb
+            self.occ[our_side]      ^= rk_bb
+            self.all_occ            ^= rk_bb
+            self.piece_at[rk_to]     = NO_PIECE
+            self.piece_at[rk_from]   = ROOK + 6*our_side
 
-        # black 0-0
-        elif piece == 11 and from_sq == 60 and to_sq == 62:
-            self.bb[9] &= ~(1 << 63)     # clear h8
-            self.bb[9] |=  (1 << 61)     # set  f8
+        # finally drop the piece back on its origin square
+        self.bb[our_side][landing_code] ^= from_bb
+        self.occ[our_side] ^= from_bb
+        self.all_occ       ^= from_bb
+        self.piece_at[from_sq] = landing_code + 6*our_side
 
-        # black 0-0-0
-        elif piece == 11 and from_sq == 60 and to_sq == 58:
-            self.bb[9] &= ~(1 << 56)     # clear a8
-            self.bb[9] |=  (1 << 59)     # set  d8
-            
-            
-        if self.side == 'white':
-            self.side = 'black'
-        else:
-            self.side = 'white'
+        # 5. restore EP and castling rights
+        self.en_passant    = last_move.prev_ep
+        wk,wq,bk,bq        = unpack_castle(last_move.castle_mask)
+        self.white_king_castle, self.white_queen_castle = wk, wq
+        self.black_king_castle, self.black_queen_castle = bk, bq
 
+        # 6. flip side
+        self.side_to_move ^= 1
+                
+        
+        
+        
     
-    def build_occ(self, WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK):
-        white_occ = WP | WN | WB | WR | WQ | WK
-        black_occ = BP | BN | BB | BR | BQ | BK
-        all_occ = white_occ | black_occ
-        empty_occ = 0xFFFFFFFFFFFFFFFF & (~all_occ)
-        return white_occ, black_occ, all_occ, empty_occ
+    def build_occ(self):
+        WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK = self.bb
+        self.occ = [0] * 2
+        self.occ[0] = WP | WN | WB | WR | WQ | WK
+        self.occ[1] = BP | BN | BB | BR | BQ | BK
+        self.all_occ = self.occ[0] | self.occ[1]
     
     def calculate_king_moves(self, sq, same_side_occ, all_occ, attacked_sqs, side = 'white'):
         moves = KING_TABLE[sq] & ~same_side_occ & ~attacked_sqs
@@ -200,33 +296,6 @@ class ChessLogic:
                             moves |= 1 << self.en_passant
 
         return moves
-    
-    def is_checked(self, black_can_capture, white_can_capture, wk_bb, bk_bb, side = 'white'):
-        if side == 'white':
-            if black_can_capture & wk_bb:
-                return True
-        else:
-            if white_can_capture & bk_bb:
-                return True
-        return False
-    
-    def is_checkmate(self, black_can_move, white_can_move, side = 'white'):
-        if side == 'white':
-            if white_can_move:
-                return False
-        else:
-            if black_can_move:
-                return False
-        return True
-    
-    def restart(self):
-        self.side = 'white'
-        self.en_passant = None
-        self.white_king_castle = True
-        self.black_king_castle = True
-        self.black_queen_castle = True
-        self.white_queen_castle = True
-        self.bb = self.fen_to_bitboard(init_fen)
     
     
     def find_available_moves(self, piece_bb: list, side = 'white'):
