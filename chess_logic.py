@@ -13,7 +13,17 @@ class ChessLogic:
         self.white_queen_castle = True
         self.bb = self.fen_to_bitboard(init_fen)
 
-
+    def encode_move(self, from_sq, to_sq, promo= 0, captured = 0, special = 0):
+        _encoded_move = from_sq | (to_sq << 6) | (promo << 12) | (captured << 14) | (special << 15)
+        return _encoded_move 
+    
+    def decode_move(self, encoded_move):
+        from_sq = encoded_move & 0b111111
+        to_sq = (encoded_move >> 6) &0b111111
+        promo = (encoded_move >> 12) & 0b11
+        captured = (encoded_move >> 14) & 0b1
+        special = (encoded_move >> 15) & 0b1    
+        return from_sq, to_sq, promo, captured, special
         
     def fen_to_bitboard(self, fen: str):
         char_to_index = {
@@ -114,14 +124,8 @@ class ChessLogic:
         empty_occ = 0xFFFFFFFFFFFFFFFF & (~all_occ)
         return white_occ, black_occ, all_occ, empty_occ
     
-    def calculate_king_moves(self, sq, white_occ, all_occ, attacked_sqs, side = 'white'):
-        moves = KING_TABLE[sq] & ~white_occ & ~attacked_sqs
-        print('aaa')
-        print(bin(attacked_sqs))
-        print(bin(attacked_sqs & 0b1110000))
-        print(bin(white_occ))
-        print(bin(all_occ))
-        print()
+    def calculate_king_moves(self, sq, same_side_occ, all_occ, attacked_sqs, side = 'white'):
+        moves = KING_TABLE[sq] & ~same_side_occ & ~attacked_sqs
         if not attacked_sqs & (1<< sq):
             if side == 'white':
                 if self.white_king_castle:
@@ -321,7 +325,7 @@ class ChessLogic:
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                pawn_movable = self.calculate_pawn_moves(i, all_occ, white_occ, black_occ, side)
+                pawn_movable = self.calculate_pawn_moves(i, all_occ, all_occ, black_occ, 'black')
                 black_can_capture |= pawn_movable
                 bits &= bits - 1
 
@@ -330,7 +334,7 @@ class ChessLogic:
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                knight_movable = KNIGHT_TABLE[i] & ~black_occ
+                knight_movable = KNIGHT_TABLE[i]
                 black_can_capture |= knight_movable
                 bits &= bits - 1
 
@@ -339,7 +343,7 @@ class ChessLogic:
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                king_movable = self.calculate_king_moves(i, black_occ, all_occ, 0b0, 'black')
+                king_movable = self.calculate_king_moves(i, 0b0, all_occ, 0b0, 'black')
                 black_can_capture |= king_movable
                 bits &= bits - 1
 
@@ -350,7 +354,7 @@ class ChessLogic:
                 i = lsb.bit_length() - 1
                 relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
                 magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                rook_movable = ROOK_TABLE[i][magic_index] & ~black_occ
+                rook_movable = ROOK_TABLE[i][magic_index]
                 black_can_capture |= rook_movable
                 bits &= bits - 1
 
@@ -361,7 +365,7 @@ class ChessLogic:
                 i = lsb.bit_length() - 1
                 relevant_occ = BISHOP_RELEVANT_MASK[i] & all_occ
                 magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                bishop_movable = BISHOP_TABLE[i][magic_index] & ~black_occ
+                bishop_movable = BISHOP_TABLE[i][magic_index]
                 
                 black_can_capture |= bishop_movable
                 bits &= bits - 1
@@ -373,17 +377,16 @@ class ChessLogic:
                 i = lsb.bit_length() - 1
                 relevant_rook_occ = ROOK_RELEVANT_MASK[i] & all_occ
                 rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                rook_moves = ROOK_TABLE[i][rook_magic_index] & ~black_occ
+                rook_moves = ROOK_TABLE[i][rook_magic_index]
 
                 relevant_bishop_occ = BISHOP_RELEVANT_MASK[i] & all_occ
                 bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                bishop_moves = BISHOP_TABLE[i][bishop_magic_index] & ~black_occ
+                bishop_moves = BISHOP_TABLE[i][bishop_magic_index]
 
                 queen_movable = rook_moves | bishop_moves
                 black_can_capture |= queen_movable
                 bits &= bits - 1
             
-            print('original', bin(black_can_capture))
             # start to find legal moves for white
             # King
             bits = _WK
@@ -543,7 +546,7 @@ class ChessLogic:
                 lsb = bits & -bits
                 sq  = lsb.bit_length() - 1
                 white_can_capture |= self.calculate_pawn_moves(
-                    sq, all_occ, white_occ, black_occ, "white"
+                    sq, all_occ, all_occ, black_occ, "white"
                 )
                 bits &= bits - 1
             # Knights
@@ -551,13 +554,13 @@ class ChessLogic:
             while bits:
                 lsb = bits & -bits
                 sq  = lsb.bit_length() - 1
-                white_can_capture |= KNIGHT_TABLE[sq] & ~white_occ
+                white_can_capture |= KNIGHT_TABLE[sq]
                 bits &= bits - 1
             # King
             sq = _WK.bit_length() - 1 if _WK else -1
             if sq >= 0:
                 white_can_capture |= self.calculate_king_moves(
-                    sq, white_occ, all_occ, 0, "white"
+                    sq, 0b0, all_occ, 0, "white"
                 )
             # Rooks / Bishops / Queens
             for bb, table, rel_mask, magic, bits_in in (
@@ -570,7 +573,7 @@ class ChessLogic:
                     sq  = lsb.bit_length() - 1
                     rel_occ = rel_mask[sq] & all_occ
                     mi       = get_magic_index(rel_occ, magic[sq], bits_in[sq])
-                    white_can_capture |= table[sq][mi] & ~white_occ
+                    white_can_capture |= table[sq][mi]
                     bits &= bits - 1
             # Queens need both rook and bishop moves
             bits = _WQ
@@ -585,7 +588,7 @@ class ChessLogic:
                 b_occ = BISHOP_RELEVANT_MASK[sq] & all_occ
                 b_mi  = get_magic_index(b_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
                 b_mv  = BISHOP_TABLE[sq][b_mi]
-                white_can_capture |= (r_mv | b_mv) & ~white_occ
+                white_can_capture |= (r_mv | b_mv)
                 bits &= bits - 1
 
             # 3. Generate legal moves for BLACK side
@@ -692,9 +695,3 @@ if __name__ == "__main__":
     fen = 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1'
     bb = logic.fen_to_bitboard(fen)
     result = logic.find_available_moves(bb, 'white')
-    
-
-
-
-0b1111111100010000001111111110110111011010100010010000100000001000
-0b1111111100010000001111111110110111011010100010010000100000001000
