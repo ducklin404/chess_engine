@@ -88,6 +88,10 @@ init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 RANK_1 = 0x00000000000000FF
 RANK_8 = 0xFF00000000000000
 
+
+RANK_2 = 0x000000000000FF00  
+RANK_7 = 0x00FF000000000000 
+
 SQ_MASK = [1 << i for i in range(64)]
 
 NO_PIECE = -1
@@ -351,7 +355,7 @@ ROOK_BETWEEN_MASK = [
     for r_sq in range(64)
 ]
 
-def encode_move(from_sq: int, to_sq: int, flag: int) -> int:
+def encode_move(from_sq: int, to_sq: int, flag: int = 0) -> int:
     """Return 16-bit move word (0 ≤ flag ≤ 15)."""
     return (from_sq & 0x3F) | ((to_sq & 0x3F) << 6) | ((flag & 0xF) << 12)
 

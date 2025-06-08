@@ -4,7 +4,7 @@ from compute_helper import *
 
 class ChessLogic:
     def __init__(self):
-        self.side = 'white'
+        self.side = WHITE
         self.en_passant = None
         self.white_king_castle = True
         self.black_king_castle = True
@@ -21,7 +21,7 @@ class ChessLogic:
     def fen_to_bitboard(self, fen: str):
         char_to_index = {
             'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5}
-        piece_bb = [[0] * 6] *2
+        piece_bb = [[0]*6 for _ in range(2)]
         board = fen.split(' ')[0] 
         count = 56
         # because fen is so stupid and mark from 8th rank so the start will be 56-63
@@ -32,7 +32,7 @@ class ChessLogic:
                 count += int(cell)
             else:
                 side = 1 if cell.islower() else 0
-                piece_bb[side][char_to_index[cell]] |= (1 << count)
+                piece_bb[side][char_to_index[cell.upper()]] |= (1 << count)
                 count += 1
             
                 
@@ -75,7 +75,7 @@ class ChessLogic:
             self.piece_at[cap_sq] = NO_PIECE
             
         # 3. adjust which piece land on to_sq and move the rook if castle
-        landing = moving_piece
+        landing = piece_code
         
         if 8 <= flag <= 15:
             landing = (flag & 3) + 1
@@ -85,7 +85,7 @@ class ChessLogic:
 
             rk_bb = SQ_MASK[rk_from] | SQ_MASK[rk_to]
             
-            self.bb[ROOK + 6*our_side] ^= rk_bb
+            self.bb[our_side][ROOK] ^= rk_bb
             self.occ[our_side] ^= rk_bb
             self.all_occ ^= rk_bb
             self.piece_at[rk_from] = NO_PIECE
@@ -146,7 +146,7 @@ class ChessLogic:
                 
         
         # 7. flip the side
-        self.side_to_move ^= 1  
+        self.side ^= 1  
 
     def unpush(self):
         
@@ -207,54 +207,84 @@ class ChessLogic:
         self.black_king_castle, self.black_queen_castle = bk, bq
 
         # 6. flip side
-        self.side_to_move ^= 1
+        self.side ^= 1
                 
         
-        
+    def add_flag(self, piece_type, from_sq, to_sq) -> list:
+        encoded_moves = []
+        if piece_type == KING:
+            if abs(to_sq - from_sq) == 2:
+                if to_sq == 2 or to_sq == 58:
+                    encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = CASTLE_QUEEN))
+                else:
+                    encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = CASTLE_KING))
+                    
+            else:
+                if self.piece_at[to_sq] == NO_PIECE:
+                    encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = 0))
+                else:
+                    encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = CAPTURE))
+        elif piece_type == PAWN:
+            if 56 <= to_sq <= 63 or 0 <= to_sq <= 7:
+                captured = 4 if self.piece_at[to_sq] != NO_PIECE else 0
+                for i in range(8, 12):
+                    encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = i + captured))
+            
+            elif abs(to_sq - from_sq) == 16:
+                encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = DOUBLE_PUSH))
+            elif abs(to_sq - from_sq) != 8 and self.piece_at[to_sq] == NO_PIECE:
+                encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = EN_PASSANT))
+            elif self.piece_at[to_sq] != NO_PIECE:
+                encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = CAPTURE))
+            else:
+                encoded_moves.append(encode_move(from_sq=from_sq, to_sq=to_sq, flag = 0))
+            
+        return encoded_moves
         
     
     def build_occ(self):
-        WP, WN, WB, WR, WQ, WK, BP, BN, BB, BR, BQ, BK = self.bb
+        WP, WN, WB, WR, WQ, WK = self.bb[0]
+        BP, BN, BB, BR, BQ, BK = self.bb[1]
         self.occ = [0] * 2
         self.occ[0] = WP | WN | WB | WR | WQ | WK
         self.occ[1] = BP | BN | BB | BR | BQ | BK
         self.all_occ = self.occ[0] | self.occ[1]
     
-    def calculate_king_moves(self, sq, same_side_occ, all_occ, attacked_sqs, side = 'white'):
+    def calculate_king_moves(self, sq, same_side_occ, all_occ, attacked_sqs, side = WHITE):
         moves = KING_TABLE[sq] & ~same_side_occ & ~attacked_sqs
         if not attacked_sqs & (1<< sq):
-            if side == 'white':
+            if side == WHITE:
                 if self.white_king_castle:
-                    if not WHITE_KING_EMPTY & all_occ:
+                    if not (WHITE_KING_EMPTY & all_occ):
                         if not attacked_sqs & 0b1110000:
                             moves |= 0b1000000
                 if self.white_queen_castle:
-                    if not WHITE_QUEEN_EMPTY & all_occ:
+                    if not (WHITE_QUEEN_EMPTY & all_occ):
                         if not attacked_sqs & 0b11100:
-                            moves |= 0b10
+                            moves |= 0b100
             else:
                 if self.black_king_castle:
-                    if not BLACK_KING_EMPTY & all_occ:
+                    if not (BLACK_KING_EMPTY & all_occ):
                         if not attacked_sqs & (0b1110000 << 56):
                             moves |= 0b1000000 << 56    
                 if self.black_queen_castle:
-                    if not BLACK_QUEEN_EMPTY & all_occ:
+                    if not (BLACK_QUEEN_EMPTY & all_occ):
                         if not attacked_sqs & (0b11100 << 56):
-                            moves |= 0b10 << 56
+                            moves |= 0b100 << 56
                 
-            return moves
+        return moves
     
     
-    def calculate_pawn_moves(self, sq, all_occ, white_occ, black_occ, side = 'white'):
+    def calculate_pawn_moves(self, sq, all_occ, white_occ, black_occ, side = WHITE):
         moves = 0
         row, col = divmod(sq, 8)
-        if side == 'white':
+        if side == WHITE:
             # calculate the attack squares
             moves |= black_occ & WHITE_PAWN_ATTACK_TABLE[sq]
             
             # double pawn push
             if row == 1 and not (0b100000001 << (row + 1) * 8 + col) & all_occ:
-                moves |= 1 << 24 + col
+                moves |= 1 << (24 + col)
                 
             # single pawn push
             if row < 7:
@@ -286,7 +316,7 @@ class ChessLogic:
                     moves |= 1 << (row - 1)*8 +col
                     
             # en passen
-            if self.en_passant:
+            if self.en_passant is not None:
                 if row == 3:
                     if col + 1 <= 7:
                         if (row - 1)*8 + (col + 1) == self.en_passant:
@@ -298,461 +328,270 @@ class ChessLogic:
         return moves
     
     
-    def find_available_moves(self, piece_bb: list, side = 'white'):
-        _WP, _WN, _WB, _WR, _WQ, _WK, _BP, _BN, _BB, _BR, _BQ, _BK = piece_bb
-        white_occ, black_occ, all_occ, empty_occ = self.build_occ(_WP, _WN, _WB, _WR, _WQ, _WK, _BP, _BN, _BB, _BR, _BQ, _BK)
-        white_can_capture = 0
-        black_can_capture = 0
+    
+    def find_available_moves(self):
+        our_side = self.side
+        other_side = our_side ^ 1
+        attacked_mask = 0
         pinned = [0] * 64
-        moves = [0] * 64
+        moves: list[int] = []
         checked = 0
         checked_mask = 0
-        if side == 'white':
-            king_sq = _WK.bit_length() -1
-            # calculate if king is in check or any pin exist
-            # black knight
-            bits = _BN
-            while bits:
-                lsb = bits & -bits
-                sq = lsb.bit_length() - 1
-                _knight_mask = KNIGHT_TABLE[sq] & _WK
-                if _knight_mask:
-                    checked += 1
-                    checked_mask = 1 << sq
-                bits &= bits - 1
+        
+        
+        
+        # start here
+        king_sq = self.bb[our_side][KING].bit_length() -1
+        # calculate if king is in check or any pin exist and get attacked mask so king can't move there
+        # black knight
+        bits = self.bb[other_side][KNIGHT]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            _knight_mask = KNIGHT_TABLE[sq] & self.bb[our_side][KING]
+            if _knight_mask:
+                checked += 1
+                checked_mask = 1 << sq
+            knight_movable = KNIGHT_TABLE[sq]
+            attacked_mask |= knight_movable
+            bits &= bits - 1
 
-            # Black Bishops
-            bits = _BB
-            while bits:
-                lsb = bits & -bits
-                sq = lsb.bit_length() - 1
-                _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & all_occ
-                if _bishop_mask.bit_count() == 1:
-                    checked += 1
-                    checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
-                elif _bishop_mask.bit_count() == 2:
-                    blocker_bb   = _bishop_mask & white_occ    
-                    if blocker_bb:     
-                        blocker_sq   = blocker_bb.bit_length() - 1      
-                        pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
-                bits &= bits - 1
-
-            # Black Pawns
-            bits = _BP
-            while bits:
-                lsb = bits & -bits
-                sq = lsb.bit_length() - 1
-                _pawn_mask = BLACK_PAWN_ATTACK_TABLE[sq] & _WK
-                if _pawn_mask:
-                    checked += 1
-                    checked_mask = 1 << sq
-                bits &= bits - 1
-
-            # Black Rooks
-            bits = _BR
-            while bits:
-                lsb = bits & -bits
-                sq = lsb.bit_length() - 1
-                _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & all_occ
-                if _rook_mask.bit_count() == 1:
-                    checked += 1
-                    checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
-                elif _rook_mask.bit_count() == 2:
-                    blocker_bb = _rook_mask & white_occ
-                    if blocker_bb:          
-                        pinned[blocker_bb.bit_length() - 1] = ROOK_BETWEEN_MASK[sq][king_sq]
-                bits &= bits - 1
-
-            # Black Queens
-            bits = _BQ
-            while bits:
-                lsb = bits & -bits
-                sq = lsb.bit_length() - 1
-                _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & all_occ
-                if _bishop_mask.bit_count() == 1:
-                    checked += 1
-                    checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
-                elif _bishop_mask.bit_count() == 2:
-                    blocker_bb   = _bishop_mask & white_occ    
-                    if blocker_bb:     
-                        blocker_sq   = blocker_bb.bit_length() - 1      
-                        pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
-                _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & all_occ
-                if _rook_mask.bit_count() == 1:
-                    checked += 1
-                    checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
-                elif _rook_mask.bit_count() == 2:
-                    blocker_bb = _rook_mask & white_occ
-                    if blocker_bb:          
-                        pinned[blocker_bb.bit_length() - 1] = ROOK_BETWEEN_MASK[sq][king_sq]
-                bits &= bits - 1
-            print(checked)
+        # Black Bishops
+        bits = self.bb[other_side][BISHOP]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            if _bishop_mask.bit_count() == 1:
+                checked += 1
+                checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
+            elif _bishop_mask.bit_count() == 2:
+                blocker_bb   = _bishop_mask & self.occ[our_side]    
+                if blocker_bb:     
+                    blocker_sq   = blocker_bb.bit_length() - 1      
+                    pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
+                    
+            relevant_occ = BISHOP_RELEVANT_MASK[sq] & self.all_occ
+            magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
+            bishop_movable = BISHOP_TABLE[sq][magic_index]
             
-            # calculate all place black piece can move
-            # Black Pawns
-            bits = _BP
+            attacked_mask |= bishop_movable        
+            
+            bits &= bits - 1
+            
+
+        # Black Pawns
+        bits = self.bb[other_side][PAWN]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            _pawn_mask = BLACK_PAWN_ATTACK_TABLE[sq] & self.bb[our_side][KING]
+            if _pawn_mask:
+                checked += 1
+                checked_mask = 1 << sq
+            pawn_movable = self.calculate_pawn_moves(sq, self.all_occ, self.all_occ, self.occ[other_side], other_side)
+            attacked_mask |= pawn_movable
+            bits &= bits - 1
+            
+
+        # Black Rooks
+        bits = self.bb[other_side][ROOK]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            if _rook_mask.bit_count() == 1:
+                checked += 1
+                checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
+            elif _rook_mask.bit_count() == 2:
+                blocker_bb = _rook_mask & self.occ[our_side]
+                if blocker_bb:          
+                    pinned[blocker_bb.bit_length() - 1] = ROOK_BETWEEN_MASK[sq][king_sq]
+                    
+            relevant_occ = ROOK_RELEVANT_MASK[sq] & self.all_occ
+            magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[sq], ROOK_RELEVEANT_BITS[sq])
+            rook_movable = ROOK_TABLE[sq][magic_index]
+            attacked_mask |= rook_movable
+            bits &= bits - 1
+            
+         
+        # Black Queens
+        bits = self.bb[other_side][QUEEN]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            if _bishop_mask.bit_count() == 1:
+                checked += 1
+                checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
+            elif _bishop_mask.bit_count() == 2:
+                blocker_bb   = _bishop_mask & self.occ[our_side]    
+                if blocker_bb:     
+                    blocker_sq   = blocker_bb.bit_length() - 1      
+                    pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
+            _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            if _rook_mask.bit_count() == 1:
+                checked += 1
+                checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
+            elif _rook_mask.bit_count() == 2:
+                blocker_bb = _rook_mask & self.occ[our_side]
+                if blocker_bb:          
+                    pinned[blocker_bb.bit_length() - 1] = ROOK_BETWEEN_MASK[sq][king_sq]
+            
+            
+ 
+            relevant_rook_occ = ROOK_RELEVANT_MASK[sq] & self.all_occ
+            rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[sq], ROOK_RELEVEANT_BITS[sq])
+            rook_moves = ROOK_TABLE[sq][rook_magic_index]
+
+            relevant_bishop_occ = BISHOP_RELEVANT_MASK[sq] & self.all_occ
+            bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
+            bishop_moves = BISHOP_TABLE[sq][bishop_magic_index]
+
+            queen_movable = rook_moves | bishop_moves
+            attacked_mask |= queen_movable
+            
+            bits &= bits - 1
+            
+            
+        print(checked)
+        
+        # Black King
+        bits = self.bb[other_side][KING]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            king_movable = self.calculate_king_moves(sq, 0b0, self.all_occ, 0b0, other_side)
+            attacked_mask |= king_movable
+            bits &= bits - 1
+        
+        # start to find legal moves for our side
+        # King
+        bits = self.bb[our_side][KING]
+        while bits:
+            lsb = bits & -bits
+            i = lsb.bit_length() - 1
+            king_movable = self.calculate_king_moves(i, self.occ[our_side], self.all_occ, attacked_mask, self.side)
+            while king_movable:
+                lsb = king_movable & -king_movable
+                to_sq = lsb.bit_length() -1
+                moves += self.add_flag(KING, i, to_sq = to_sq)
+                king_movable &= king_movable -1
+            bits &= bits - 1
+            
+        if checked <= 1:
+            # Pawns
+            bits = self.bb[our_side][PAWN]
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                pawn_movable = self.calculate_pawn_moves(i, all_occ, all_occ, black_occ, 'black')
-                black_can_capture |= pawn_movable
+                pawn_movable = self.calculate_pawn_moves(i, self.all_occ, self.occ[our_side], self.occ[other_side], self.side)
+                if pinned[i]:
+                    pawn_movable &= pinned[i]
+                if checked:
+                    pawn_movable &= checked_mask
+                while pawn_movable:
+                    lsb = pawn_movable & -pawn_movable
+                    to_sq = lsb.bit_length() - 1
+                    moves+= self.add_flag(PAWN, from_sq= i, to_sq=to_sq)
+                    pawn_movable &= pawn_movable -1
                 bits &= bits - 1
 
-            # Black Knights
-            bits = _BN
+            # Knights
+            bits = self.bb[our_side][KNIGHT]
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                knight_movable = KNIGHT_TABLE[i]
-                black_can_capture |= knight_movable
+                knight_movable = KNIGHT_TABLE[i] & ~self.occ[our_side]
+                if pinned[i]:
+                    knight_movable &= pinned[i]
+                if checked:
+                    knight_movable &= checked_mask
+                while knight_movable:
+                    lsb = knight_movable & -knight_movable
+                    to_sq = lsb.bit_length() - 1                
+                    if self.piece_at[to_sq] == NO_PIECE:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = 0))
+                    else:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = CAPTURE))
+                    knight_movable &= knight_movable-1
                 bits &= bits - 1
 
-            # Black King
-            bits = _BK
-            while bits:
-                lsb = bits & -bits
-                i = lsb.bit_length() - 1
-                king_movable = self.calculate_king_moves(i, 0b0, all_occ, 0b0, 'black')
-                black_can_capture |= king_movable
-                bits &= bits - 1
+            
 
-            # Black Rooks
-            bits = _BR
+            # Rooks
+            bits = self.bb[our_side][ROOK]
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
+                relevant_occ = ROOK_RELEVANT_MASK[i] & self.all_occ
                 magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                rook_movable = ROOK_TABLE[i][magic_index]
-                black_can_capture |= rook_movable
+                rook_movable = ROOK_TABLE[i][magic_index] & ~self.occ[our_side]
+                if pinned[i]:
+                    rook_movable &= pinned[i]
+                if checked:
+                    rook_movable &= checked_mask
+                while rook_movable:
+                    lsb = rook_movable & -rook_movable
+                    to_sq = lsb.bit_length() - 1                
+                    if self.piece_at[to_sq] == NO_PIECE:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = 0))
+                    else:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = CAPTURE))
+                    rook_movable &= rook_movable-1
                 bits &= bits - 1
 
-            # Black Bishops
-            bits = _BB
+            # Bishops
+            bits = self.bb[our_side][BISHOP]
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                relevant_occ = BISHOP_RELEVANT_MASK[i] & all_occ
+                relevant_occ = BISHOP_RELEVANT_MASK[i] & self.all_occ
                 magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                bishop_movable = BISHOP_TABLE[i][magic_index]
-                
-                black_can_capture |= bishop_movable
+                bishop_movable = BISHOP_TABLE[i][magic_index] & ~self.occ[our_side]
+                if pinned[i]:
+                    bishop_movable &= pinned[i]
+                if checked:
+                    bishop_movable &= checked_mask
+                while bishop_movable:
+                    lsb = bishop_movable & -bishop_movable
+                    to_sq = lsb.bit_length() - 1                
+                    if self.piece_at[to_sq] == NO_PIECE:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = 0))
+                    else:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = CAPTURE))
+                    bishop_movable &= bishop_movable -1
                 bits &= bits - 1
 
-            # Black Queens
-            bits = _BQ
+            # Queens
+            bits = self.bb[our_side][QUEEN]
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                relevant_rook_occ = ROOK_RELEVANT_MASK[i] & all_occ
+                relevant_rook_occ = ROOK_RELEVANT_MASK[i] & self.all_occ
                 rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                rook_moves = ROOK_TABLE[i][rook_magic_index]
+                rook_moves = ROOK_TABLE[i][rook_magic_index] & ~self.occ[our_side]
+                
 
-                relevant_bishop_occ = BISHOP_RELEVANT_MASK[i] & all_occ
+                relevant_bishop_occ = BISHOP_RELEVANT_MASK[i] & self.all_occ
                 bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                bishop_moves = BISHOP_TABLE[i][bishop_magic_index]
+                bishop_moves = BISHOP_TABLE[i][bishop_magic_index] & ~self.occ[our_side]
+                
 
                 queen_movable = rook_moves | bishop_moves
-                black_can_capture |= queen_movable
+                if pinned[i]:
+                    queen_movable &= pinned[i]
+                if checked:
+                    queen_movable &= checked_mask
+                while queen_movable:
+                    lsb = queen_movable & -queen_movable
+                    to_sq = lsb.bit_length() - 1                
+                    if self.piece_at[to_sq] == NO_PIECE:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = 0))
+                    else:
+                        moves.append(encode_move(from_sq=i, to_sq = to_sq, flag = CAPTURE))
+                    queen_movable &= queen_movable -1
                 bits &= bits - 1
-            
-            # start to find legal moves for white
-            # King
-            bits = _WK
-            while bits:
-                lsb = bits & -bits
-                i = lsb.bit_length() - 1
-                king_movable = self.calculate_king_moves(i, white_occ, all_occ, black_can_capture, side)
-                
-                moves[i] = king_movable
-                bits &= bits - 1
-            
-            if checked <= 1:
-                # Pawns
-                bits = _WP
-                while bits:
-                    lsb = bits & -bits
-                    i = lsb.bit_length() - 1
-                    pawn_movable = self.calculate_pawn_moves(i, all_occ, white_occ, black_occ, side)
-                    if pinned[i]:
-                        pawn_movable &= pinned[i]
-                    if checked:
-                        pawn_movable &= checked_mask
-                    moves[i] = pawn_movable
-                    bits &= bits - 1
-
-                # Knights
-                bits = _WN
-                while bits:
-                    lsb = bits & -bits
-                    i = lsb.bit_length() - 1
-                    knight_movable = KNIGHT_TABLE[i] & ~white_occ
-                    if pinned[i]:
-                        knight_movable &= pinned[i]
-                    if checked:
-                        knight_movable &= checked_mask
-                    moves[i] = knight_movable
-                    bits &= bits - 1
-
-                
-
-                # Rooks
-                bits = _WR
-                while bits:
-                    lsb = bits & -bits
-                    i = lsb.bit_length() - 1
-                    relevant_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                    magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                    rook_movable = ROOK_TABLE[i][magic_index] & ~white_occ
-                    if pinned[i]:
-                        rook_movable &= pinned[i]
-                    if checked:
-                        rook_movable &= checked_mask
-                    moves[i] = rook_movable
-                    bits &= bits - 1
-
-                # Bishops
-                bits = _WB
-                while bits:
-                    lsb = bits & -bits
-                    i = lsb.bit_length() - 1
-                    relevant_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                    magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                    bishop_movable = BISHOP_TABLE[i][magic_index] & ~white_occ
-                    if pinned[i]:
-                        bishop_movable &= pinned[i]
-                    if checked:
-                        bishop_movable &= checked_mask
-                    moves[i] = bishop_movable
-                    bits &= bits - 1
-
-                # Queens
-                bits = _WQ
-                while bits:
-                    lsb = bits & -bits
-                    i = lsb.bit_length() - 1
-                    relevant_rook_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                    rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                    rook_moves = ROOK_TABLE[i][rook_magic_index] & ~white_occ
-                    
-
-                    relevant_bishop_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                    bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                    bishop_moves = BISHOP_TABLE[i][bishop_magic_index] & ~white_occ
-                    
-
-                    queen_movable = rook_moves | bishop_moves
-                    if pinned[i]:
-                        queen_movable &= pinned[i]
-                    if checked:
-                        queen_movable &= checked_mask
-                    white_can_capture |= queen_movable
-                    moves[i] = queen_movable
-                    bits &= bits - 1
-        
-        else:  # ------------------------- BLACK TO MOVE ---------------------
-            king_sq = _BK.bit_length() - 1
-            # -------------------
-            # 1. Detect checks / pins coming from WHITE pieces
-            # -------------------
-            # (a) White Knights
-            bits = _WN
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                if KNIGHT_TABLE[sq] & _BK:
-                    checked += 1
-                    checked_mask |= 1 << sq
-                bits &= bits - 1
-
-            # (b) White Bishops / Queens (diagonals)
-            bits = _WB | _WQ
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                mask = BISHOP_BETWEEN_MASK[sq][king_sq] & all_occ
-                bc   = mask.bit_count()
-                if bc == 1:
-                    checked += 1
-                    checked_mask |= BISHOP_BETWEEN_MASK[sq][king_sq]
-                elif bc == 2:
-                    blocker_bb = mask & black_occ
-                    if blocker_bb:
-                        pinned_sq = blocker_bb.bit_length() - 1
-                        pinned[pinned_sq] = BISHOP_BETWEEN_MASK[sq][king_sq]
-                bits &= bits - 1
-
-            # (c) White Rooks / Queens (orthogonals)
-            bits = _WR | _WQ
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                mask = ROOK_BETWEEN_MASK[sq][king_sq] & all_occ
-                bc   = mask.bit_count()
-                if bc == 1:
-                    checked += 1
-                    checked_mask |= ROOK_BETWEEN_MASK[sq][king_sq]
-                elif bc == 2:
-                    blocker_bb = mask & black_occ
-                    if blocker_bb:
-                        pinned_sq = blocker_bb.bit_length() - 1
-                        pinned[pinned_sq] = ROOK_BETWEEN_MASK[sq][king_sq]
-                bits &= bits - 1
-
-            # (d) White Pawns
-            bits = _WP
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                if WHITE_PAWN_ATTACK_TABLE[sq] & _BK:
-                    checked += 1
-                    checked_mask |= 1 << sq
-                bits &= bits - 1
-
-            # 2. Generate EVERY square white pieces can capture (for king safety)
-            bits = _WP
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                white_can_capture |= self.calculate_pawn_moves(
-                    sq, all_occ, all_occ, black_occ, "white"
-                )
-                bits &= bits - 1
-            # Knights
-            bits = _WN
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                white_can_capture |= KNIGHT_TABLE[sq]
-                bits &= bits - 1
-            # King
-            sq = _WK.bit_length() - 1 if _WK else -1
-            if sq >= 0:
-                white_can_capture |= self.calculate_king_moves(
-                    sq, 0b0, all_occ, 0, "white"
-                )
-            # Rooks / Bishops / Queens
-            for bb, table, rel_mask, magic, bits_in in (
-                (_WR, ROOK_TABLE, ROOK_RELEVANT_MASK, ROOK_MAGIC, ROOK_RELEVEANT_BITS),
-                (_WB, BISHOP_TABLE, BISHOP_RELEVANT_MASK, BISHOP_MAGIC, BISHOP_RELEVEANT_BITS),
-            ):
-                bits = bb
-                while bits:
-                    lsb = bits & -bits
-                    sq  = lsb.bit_length() - 1
-                    rel_occ = rel_mask[sq] & all_occ
-                    mi       = get_magic_index(rel_occ, magic[sq], bits_in[sq])
-                    white_can_capture |= table[sq][mi]
-                    bits &= bits - 1
-            # Queens need both rook and bishop moves
-            bits = _WQ
-            while bits:
-                lsb = bits & -bits
-                sq  = lsb.bit_length() - 1
-                # rook part
-                r_occ = ROOK_RELEVANT_MASK[sq] & all_occ
-                r_mi  = get_magic_index(r_occ, ROOK_MAGIC[sq], ROOK_RELEVEANT_BITS[sq])
-                r_mv  = ROOK_TABLE[sq][r_mi]
-                # bishop part
-                b_occ = BISHOP_RELEVANT_MASK[sq] & all_occ
-                b_mi  = get_magic_index(b_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
-                b_mv  = BISHOP_TABLE[sq][b_mi]
-                white_can_capture |= (r_mv | b_mv)
-                bits &= bits - 1
-
-            # 3. Generate legal moves for BLACK side
-            # ------------------------------------------------------------------
-            # (a) King (must avoid white_can_capture)
-            if _BK:
-                i = king_sq
-                king_moves = self.calculate_king_moves(i, black_occ, all_occ, white_can_capture, "black")
-                moves[i] = king_moves
-                # Allow king moves to be considered in black_can_capture, too
-                black_can_capture |= king_moves
-
-            # If we are double‑checked, nothing except the king can move
-            if checked <= 1:
-                # (b) Pawns
-                bits = _BP
-                while bits:
-                    lsb = bits & -bits
-                    i   = lsb.bit_length() - 1
-                    pawn_moves = self.calculate_pawn_moves(i, all_occ, white_occ, black_occ, "black")
-                    if pinned[i]:
-                        pawn_moves &= pinned[i]
-                    if checked:
-                        pawn_moves &= checked_mask
-                    moves[i] = pawn_moves
-                    black_can_capture |= pawn_moves
-                    bits &= bits - 1
-
-                # (c) Knights
-                bits = _BN
-                while bits:
-                    lsb = bits & -bits
-                    i   = lsb.bit_length() - 1
-                    knight_moves = KNIGHT_TABLE[i] & ~black_occ
-                    if pinned[i]:
-                        knight_moves &= pinned[i]
-                    if checked:
-                        knight_moves &= checked_mask
-                    moves[i] = knight_moves
-                    black_can_capture |= knight_moves
-                    bits &= bits - 1
-
-                # (d) Rooks
-                bits = _BR
-                while bits:
-                    lsb = bits & -bits
-                    i   = lsb.bit_length() - 1
-                    rel_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                    mi      = get_magic_index(rel_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                    rook_moves = ROOK_TABLE[i][mi] & ~black_occ
-                    if pinned[i]:
-                        rook_moves &= pinned[i]
-                    if checked:
-                        rook_moves &= checked_mask
-                    moves[i] = rook_moves
-                    black_can_capture |= rook_moves
-                    bits &= bits - 1
-
-                # (e) Bishops
-                bits = _BB
-                while bits:
-                    lsb = bits & -bits
-                    i   = lsb.bit_length() - 1
-                    rel_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                    mi      = get_magic_index(rel_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                    bishop_moves = BISHOP_TABLE[i][mi] & ~black_occ
-                    if pinned[i]:
-                        bishop_moves &= pinned[i]
-                    if checked:
-                        bishop_moves &= checked_mask
-                    moves[i] = bishop_moves
-                    black_can_capture |= bishop_moves
-                    bits &= bits - 1
-
-                # (f) Queens
-                bits = _BQ
-                while bits:
-                    lsb = bits & -bits
-                    i   = lsb.bit_length() - 1
-                    # rook part
-                    r_occ = ROOK_RELEVANT_MASK[i] & all_occ
-                    r_mi  = get_magic_index(r_occ, ROOK_MAGIC[i], ROOK_RELEVEANT_BITS[i])
-                    rook_moves = ROOK_TABLE[i][r_mi]
-                    # bishop part
-                    b_occ = BISHOP_RELEVANT_MASK[i] & all_occ
-                    b_mi  = get_magic_index(b_occ, BISHOP_MAGIC[i], BISHOP_RELEVEANT_BITS[i])
-                    bishop_moves = BISHOP_TABLE[i][b_mi]
-                    queen_moves = (rook_moves | bishop_moves) & ~black_occ
-                    if pinned[i]:
-                        queen_moves &= pinned[i]
-                    if checked:
-                        queen_moves &= checked_mask
-                    moves[i] = queen_moves
-                    black_can_capture |= queen_moves
-                    bits &= bits - 1
 
         return moves
         
@@ -763,4 +602,4 @@ if __name__ == "__main__":
     logic = ChessLogic()
     fen = 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1'
     bb = logic.fen_to_bitboard(fen)
-    result = logic.find_available_moves(bb, 'white')
+    result = logic.find_available_moves()

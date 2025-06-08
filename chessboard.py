@@ -159,7 +159,7 @@ def main():
     promotion = None
     dragging = False
     dragging_piece = None
-    moves = chess.find_available_moves(chess.bb, side)
+    moves = chess.find_available_moves()
     print(moves)
     drag_start = (None, None)
 
@@ -230,7 +230,7 @@ def main():
                             drag_start = (None, None)
                             dragging_piece = None
                             side = 'white' if side == 'black' else 'black'
-                            moves = chess.find_available_moves(chess.bb, side)
+                            moves = chess.find_available_moves()
 
                 elif dragging:
                     is_en_passant = False
@@ -284,7 +284,7 @@ def main():
                         
                             
                                 
-                                moves = chess.find_available_moves(chess.bb, side)
+                                moves = chess.find_available_moves()
                             
                         else:
                             board_state[drag_start[0]][drag_start[1]] = dragging_piece
