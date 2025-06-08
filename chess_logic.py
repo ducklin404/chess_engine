@@ -532,6 +532,7 @@ class ChessLogic:
                 if checked:
                     rook_movable &= checked_mask
                 while rook_movable:
+                    print('rook is leaking')
                     lsb = rook_movable & -rook_movable
                     to_sq = lsb.bit_length() - 1                
                     if self.piece_at[to_sq] == NO_PIECE:
@@ -595,11 +596,23 @@ class ChessLogic:
 
         return moves
         
-                
+    
+    def moves_to_data(self, moves: list[int]):
+        result = [0] * 64
+        for move in moves:
+            from_sq, to_sq, flag = decode_move(move)
+            result[from_sq] |= 1 << to_sq
+            
+        return result
+        
             
             
 if __name__ == "__main__":
     logic = ChessLogic()
-    fen = 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1'
-    bb = logic.fen_to_bitboard(fen)
+    # fen = 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1'
+    # bb = logic.fen_to_bitboard(fen)
     result = logic.find_available_moves()
+    for move in result:
+        print(bin(move))
+        
+
