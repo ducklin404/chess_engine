@@ -41,8 +41,9 @@ class ChessLogic:
     
     
     def push(self, encoded_move):
-        from_sq, to_sq, flag = decode_move(encoded_move=encoded_move)
-        
+        from_sq, to_sq, flag = decode_move(encoded_move)
+        print('from and to', from_sq, to_sq)
+        print(self.piece_at[from_sq])
         moving_piece = self.piece_at[from_sq]          
         our_side = moving_piece // 6 
         other_side = our_side ^ 1              
@@ -208,7 +209,66 @@ class ChessLogic:
 
         # 6. flip side
         self.side ^= 1
-                
+        
+    def get_chess_board(self):
+        ui_table = [[] for _ in range(8)]
+        index_to_char = {
+            NO_PIECE:     '--', 
+            WHITE_PAWN:   'wp',
+            WHITE_ROOK:   'wr',
+            WHITE_KNIGHT: 'wn',
+            WHITE_BISHOP: 'wb',
+            WHITE_QUEEN:  'wq',
+            WHITE_KING:   'wk',
+            BLACK_PAWN:   'bp',
+            BLACK_ROOK:   'br',
+            BLACK_KNIGHT: 'bn',
+            BLACK_BISHOP: 'bb',
+            BLACK_QUEEN:  'bq',
+            BLACK_KING:   'bk',
+        }
+        count = 0
+        for i in range(64):
+            ui_table[7-(i // 8)].append(index_to_char[self.piece_at[i]])
+            
+        return ui_table
+            
+    
+    def get_flag(self, from_sq, to_sq, promo = None):
+        flag = 0
+        moving_piece = self.piece_at[from_sq]
+        our_side = moving_piece // 6
+        piece_code = moving_piece % 6
+        
+        if piece_code == PAWN:
+            if promo:
+                captured = 4 if self.piece_at[to_sq] != NO_PIECE else 0
+                flag = promo + captured
+            elif abs(to_sq - from_sq) == 16:
+                flag == DOUBLE_PUSH
+            elif abs(to_sq - from_sq) != 8 and self.piece_at[to_sq] == NO_PIECE:
+                flag = EN_PASSANT
+            elif self.piece_at[to_sq] != NO_PIECE:
+                flag = CAPTURE
+        elif piece_code == KING:
+            if abs(to_sq - from_sq) == 2:
+                if to_sq == 2 or to_sq == 58:
+                    flag = CASTLE_QUEEN
+                else:
+                    flag = CASTLE_KING
+                    
+            else:
+                if self.piece_at[to_sq] != NO_PIECE:
+                    flag = CAPTURE
+        else:
+            if self.piece_at[to_sq] != NO_PIECE:
+                flag = CAPTURE
+            
+        
+        
+        
+        return flag
+        
         
     def add_flag(self, piece_type, from_sq, to_sq) -> list:
         encoded_moves = []
@@ -532,7 +592,6 @@ class ChessLogic:
                 if checked:
                     rook_movable &= checked_mask
                 while rook_movable:
-                    print('rook is leaking')
                     lsb = rook_movable & -rook_movable
                     to_sq = lsb.bit_length() - 1                
                     if self.piece_at[to_sq] == NO_PIECE:

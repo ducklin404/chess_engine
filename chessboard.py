@@ -159,7 +159,8 @@ def main():
     promotion = None
     dragging = False
     dragging_piece = None
-    moves = chess.find_available_moves()
+    moves_bb = chess.find_available_moves()
+    moves = chess.moves_to_data(moves_bb)
     print(moves)
     drag_start = (None, None)
 
@@ -210,81 +211,48 @@ def main():
                     
                     if col == col_prommo:
                         if row == 0:
-                            promote_piece = 'wq' if side == 'white' else 'bq'
+                            promote_piece = PROMO_Q 
                         elif row == 1:
-                            promote_piece = 'wr' if side == 'white' else 'br'
+                            promote_piece = PROMO_R
                         elif row == 2:
-                            promote_piece = 'wn' if side == 'white' else 'bn'
+                            promote_piece = PROMO_N 
                         elif row == 3:
-                            promote_piece = 'wb'if side == 'white' else 'bb'
+                            promote_piece = PROMO_B 
                         
                         if promote_piece is not None:
                            
-                            board_state[7-row_promo][col_prommo] = promote_piece
                             
                             board_state[drag_start[0]][drag_start[1]] = '--'
-                            
-                            chess.push((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, PIECE_TO_INDEX[dragging_piece], captured, is_en_passant=is_en_passant, promote=PIECE_TO_INDEX[promote_piece])
-                            captured = None
+                            move_to_push = encode_move((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, flag = chess.get_flag((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, promote_piece))
+                            chess.push(move_to_push)
                             promotion = None
                             drag_start = (None, None)
                             dragging_piece = None
-                            side = 'white' if side == 'black' else 'black'
-                            moves = chess.find_available_moves()
+                            moves_bb = chess.find_available_moves()
+                            moves = chess.moves_to_data(moves_bb)
+                            board_state = chess.get_chess_board()
 
                 elif dragging:
-                    is_en_passant = False
                     mx, my = pygame.mouse.get_pos()
                     dragging = False
                     row = (my // CELL_SIZE)
                     col = (mx // CELL_SIZE)
                     if 0 <= row <= 7 and 0 <= col <= 7:
                         if (1 << (7-row) * 8 + col) & moves[(7-drag_start[0])*8 + drag_start[1]]:
-                            if board_state[row][col] != '--':
-                                captured = PIECE_TO_INDEX[board_state[row][col]]
-                            else:
-                                captured = None
                             if row == 0 and dragging_piece in ('wp', 'bp'):
                                 promotion = (7-row)*8 + col
                                 
                             if not promotion:
-                            
-                                
-                                # check for en passant
-                                if dragging_piece == 'wp' and drag_start[0] == 3:
-                                    if col != drag_start[1]:
-                                        if board_state[row][col] == '--':
-                                            is_en_passant = True
-                                            board_state[3][col]  = '--'
-                                elif dragging_piece == 'bp' and drag_start[0] == 4:
-                                    if col != drag_start[1]:
-                                        if board_state[row][col] == '--':
-                                            is_en_passant = True
-                                            board_state[4][col]  = '--'
-                                            
                                 board_state[row][col] = dragging_piece
                                 board_state[drag_start[0]][drag_start[1]] = '--'
-                                chess.push((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col, PIECE_TO_INDEX[dragging_piece], captured, is_en_passant=is_en_passant)
-                                if dragging_piece == 'wk' and drag_start[1] == 4 and col == 6:
-                                    board_state[7][7] = '--'
-                                    board_state[7][5] = 'wr'
-                                elif dragging_piece == 'wk' and drag_start[1] == 4 and col == 2:
-                                    board_state[7][0] = '--'
-                                    board_state[7][3] = 'wr'
-                                elif dragging_piece == 'bk' and drag_start[1] == 4 and col == 6:
-                                    board_state[0][7] = '--'
-                                    board_state[0][5] = 'br'
-                                elif dragging_piece == 'bk' and drag_start[1] == 4 and col == 2:
-                                    board_state[0][0] = '--'
-                                    board_state[0][3] = 'br'
-                                if side == 'white':
-                                    side = 'black'
-                                else:
-                                    side = 'white'
-                        
-                            
+                                print((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col)
+                                current_flag = chess.get_flag(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col)
+                                move_to_push = encode_move(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col, flag=current_flag)
+                                chess.push(move_to_push)
                                 
-                                moves = chess.find_available_moves()
+                                moves_bb = chess.find_available_moves()
+                                moves = chess.moves_to_data(moves_bb)
+                                board_state = chess.get_chess_board()
                             
                         else:
                             board_state[drag_start[0]][drag_start[1]] = dragging_piece

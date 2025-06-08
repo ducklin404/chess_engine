@@ -1,3 +1,6 @@
+import os
+import pickle
+
 from dataclasses import dataclass
 from typing import List, Tuple
 
@@ -72,8 +75,6 @@ class HistoryEntry:
     captured: int            # 0-11 or NO_PIECE
     prev_ep: int | None      # en-passant target before the move
     castle_mask: int         # 4 bits: WK WQ BK BQ
-    halfmove_clock: int      # for the 50-move rule
-    zobrist: int             # optional, 0 if you don’t hash
     
     
 def pack_castle(wk,qk,bk,bq) -> int:
@@ -137,14 +138,18 @@ PCAP_Q         = 0xF
 
 
 INITIAL_PIECE_AT = [
-    BLACK_ROOK,   BLACK_KNIGHT, BLACK_BISHOP, BLACK_QUEEN, BLACK_KING, BLACK_BISHOP, BLACK_KNIGHT, BLACK_ROOK,   # 8th rank
-    BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,  BLACK_PAWN, BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,   # 7th rank
+    WHITE_ROOK,   WHITE_KNIGHT, WHITE_BISHOP, WHITE_QUEEN, WHITE_KING, WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK,
+    WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,  WHITE_PAWN, WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,
+       # 8th rank
+    
     NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 6th rank
     NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 5th rank
     NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 4th rank
     NO_PIECE,     NO_PIECE,     NO_PIECE,     NO_PIECE,    NO_PIECE,   NO_PIECE,     NO_PIECE,     NO_PIECE,     # 3rd rank
-    WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,  WHITE_PAWN, WHITE_PAWN,   WHITE_PAWN,   WHITE_PAWN,   # 2nd rank
-    WHITE_ROOK,   WHITE_KNIGHT, WHITE_BISHOP, WHITE_QUEEN, WHITE_KING, WHITE_BISHOP, WHITE_KNIGHT, WHITE_ROOK    # 1st rank
+    BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,  BLACK_PAWN, BLACK_PAWN,   BLACK_PAWN,   BLACK_PAWN,   # 7th rank
+    BLACK_ROOK,   BLACK_KNIGHT, BLACK_BISHOP, BLACK_QUEEN, BLACK_KING, BLACK_BISHOP, BLACK_KNIGHT, BLACK_ROOK
+       # 2nd rank
+        # 1st rank
 ]
 
 
@@ -311,19 +316,46 @@ def build_piece_tables(is_rook: bool) -> Tuple[
     print(f"[{name}]   finished, worst table size = {max(len(t) for t in attack_tables):,}")
     return relevant_bits, relevant_mask, magic_numbers, attack_tables
 
-# --- rook ------------------------------------------------------------------
+MAGIC_FILENAME = "magic_tables.pkl"
 
-(ROOK_RELEVEANT_BITS,
- ROOK_RELEVANT_MASK,
- ROOK_MAGIC,
- ROOK_TABLE) = build_piece_tables(is_rook=True)
+def generate_and_save_tables():
+    rook_bits, rook_masks, rook_magics, rook_tables = build_piece_tables(is_rook=True)
+    bishop_bits, bishop_masks, bishop_magics, bishop_tables = build_piece_tables(is_rook=False)
+    data = {
+        'rook_bits': rook_bits,
+        'rook_masks': rook_masks,
+        'rook_magics': rook_magics,
+        'rook_tables': rook_tables,
+        'bishop_bits': bishop_bits,
+        'bishop_masks': bishop_masks,
+        'bishop_magics': bishop_magics,
+        'bishop_tables': bishop_tables,
+    }
+    with open(MAGIC_FILENAME, 'wb') as f:
+        pickle.dump(data, f)
+    return data
 
-# --- bishop ----------------------------------------------------------------
+def load_or_create_tables():
+    if os.path.exists(MAGIC_FILENAME):
+        with open(MAGIC_FILENAME, 'rb') as f:
+            data = pickle.load(f)
+        print("Loaded magic tables from file.")
+    else:
+        print("Building magic tables, please wait...")
+        data = generate_and_save_tables()
+        print("Saved magic tables to file.")
+    return data
 
-(BISHOP_RELEVEANT_BITS,
- BISHOP_RELEVANT_MASK,
- BISHOP_MAGIC,
- BISHOP_TABLE) = build_piece_tables(is_rook=False)
+
+tables = load_or_create_tables()
+ROOK_RELEVEANT_BITS = tables['rook_bits']
+ROOK_RELEVANT_MASK = tables['rook_masks']
+ROOK_MAGIC = tables['rook_magics']
+ROOK_TABLE = tables['rook_tables']
+BISHOP_RELEVEANT_BITS = tables['bishop_bits']
+BISHOP_RELEVANT_MASK = tables['bishop_masks']
+BISHOP_MAGIC = tables['bishop_magics']
+BISHOP_TABLE = tables['bishop_tables']
 
 
 
