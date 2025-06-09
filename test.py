@@ -15,5 +15,4 @@ def build_between_diagonal(from_sq, to_sq):
 
 
 
-
-print(bin(build_between_diagonal(59, 60)))
+print(bin(build_between_diagonal(53, 52)))

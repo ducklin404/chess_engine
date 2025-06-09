@@ -421,7 +421,7 @@ def build_between_line(from_sq, to_sq):
         step_row = 1 if offset_row > 0 else -1
         step_col = 0
     
-    for i in range(0, abs(max(offset_row, offset_col))):
+    for i in range(0, max(abs(offset_row), abs(offset_col))):
         line |= 1 << (from_row + step_row*i)*8 + (from_col + step_col*i)
         
     return line
