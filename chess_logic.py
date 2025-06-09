@@ -42,8 +42,6 @@ class ChessLogic:
     
     def push(self, encoded_move):
         from_sq, to_sq, flag = decode_move(encoded_move)
-        print('from and to', from_sq, to_sq)
-        print(self.piece_at[from_sq])
         moving_piece = self.piece_at[from_sq]          
         our_side = moving_piece // 6 
         other_side = our_side ^ 1              
@@ -335,12 +333,12 @@ class ChessLogic:
         return moves
     
     
-    def calculate_pawn_moves(self, sq, all_occ, white_occ, black_occ, side = WHITE):
+    def calculate_pawn_moves(self, sq, all_occ, our_side_occ, other_side_occ, side = WHITE):
         moves = 0
         row, col = divmod(sq, 8)
         if side == WHITE:
             # calculate the attack squares
-            moves |= black_occ & WHITE_PAWN_ATTACK_TABLE[sq]
+            moves |= other_side_occ & WHITE_PAWN_ATTACK_TABLE[sq]
             
             # double pawn push
             if row == 1 and not (0b100000001 << (row + 1) * 8 + col) & all_occ:
@@ -364,7 +362,7 @@ class ChessLogic:
                      
         else:
             # calculate the attack squares
-            moves |= white_occ & BLACK_PAWN_ATTACK_TABLE[sq]
+            moves |= other_side_occ & BLACK_PAWN_ATTACK_TABLE[sq]
             
             # double pawn push
             if row == 6 and not (0b100000001 << (row - 2) * 8 + col) & all_occ:
@@ -422,6 +420,7 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            print('bishop count', _bishop_mask.bit_count())
             if _bishop_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
@@ -431,7 +430,7 @@ class ChessLogic:
                     blocker_sq   = blocker_bb.bit_length() - 1      
                     pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
                     
-            relevant_occ = BISHOP_RELEVANT_MASK[sq] & self.all_occ
+            relevant_occ = BISHOP_RELEVANT_MASK[sq] & (self.all_occ & ~self.bb[our_side][KING])
             magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
             bishop_movable = BISHOP_TABLE[sq][magic_index]
             
@@ -445,12 +444,12 @@ class ChessLogic:
         while bits:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
-            _pawn_mask = BLACK_PAWN_ATTACK_TABLE[sq] & self.bb[our_side][KING]
+            _pawn_attack_mask = BLACK_PAWN_ATTACK_TABLE[sq] if our_side == WHITE else WHITE_PAWN_ATTACK_TABLE[sq]
+            _pawn_mask = _pawn_attack_mask & self.bb[our_side][KING]
             if _pawn_mask:
                 checked += 1
                 checked_mask = 1 << sq
-            pawn_movable = self.calculate_pawn_moves(sq, self.all_occ, self.all_occ, self.occ[other_side], other_side)
-            attacked_mask |= pawn_movable
+            attacked_mask |= _pawn_attack_mask
             bits &= bits - 1
             
 
@@ -460,6 +459,7 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            print('rook count', _rook_mask.bit_count())
             if _rook_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
@@ -468,7 +468,7 @@ class ChessLogic:
                 if blocker_bb:          
                     pinned[blocker_bb.bit_length() - 1] = ROOK_BETWEEN_MASK[sq][king_sq]
                     
-            relevant_occ = ROOK_RELEVANT_MASK[sq] & self.all_occ
+            relevant_occ = ROOK_RELEVANT_MASK[sq] & (self.all_occ & ~self.bb[our_side][KING])
             magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[sq], ROOK_RELEVEANT_BITS[sq])
             rook_movable = ROOK_TABLE[sq][magic_index]
             attacked_mask |= rook_movable
@@ -481,6 +481,8 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            print(bin(BISHOP_BETWEEN_MASK[sq][king_sq]))
+            print('bishop count', _bishop_mask.bit_count())
             if _bishop_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
@@ -490,6 +492,8 @@ class ChessLogic:
                     blocker_sq   = blocker_bb.bit_length() - 1      
                     pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
             _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & self.all_occ
+            print(bin(ROOK_BETWEEN_MASK[sq][king_sq]))
+            print('rook count', _rook_mask.bit_count())
             if _rook_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
@@ -500,11 +504,11 @@ class ChessLogic:
             
             
  
-            relevant_rook_occ = ROOK_RELEVANT_MASK[sq] & self.all_occ
+            relevant_rook_occ = ROOK_RELEVANT_MASK[sq] & (self.all_occ & ~self.bb[our_side][KING])
             rook_magic_index = get_magic_index(relevant_rook_occ, ROOK_MAGIC[sq], ROOK_RELEVEANT_BITS[sq])
             rook_moves = ROOK_TABLE[sq][rook_magic_index]
 
-            relevant_bishop_occ = BISHOP_RELEVANT_MASK[sq] & self.all_occ
+            relevant_bishop_occ = BISHOP_RELEVANT_MASK[sq]  & (self.all_occ & ~self.bb[our_side][KING])
             bishop_magic_index = get_magic_index(relevant_bishop_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
             bishop_moves = BISHOP_TABLE[sq][bishop_magic_index]
 
@@ -531,6 +535,7 @@ class ChessLogic:
         while bits:
             lsb = bits & -bits
             i = lsb.bit_length() - 1
+            print(bin(attacked_mask))
             king_movable = self.calculate_king_moves(i, self.occ[our_side], self.all_occ, attacked_mask, self.side)
             while king_movable:
                 lsb = king_movable & -king_movable
