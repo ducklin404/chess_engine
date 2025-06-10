@@ -385,7 +385,10 @@ class ChessLogic:
 
         return moves
     
-    
+    def get_best_move(self):
+        import random
+        moves = self.find_available_moves()
+        return random.choice(moves)
     
     def find_available_moves(self):
         our_side = self.side

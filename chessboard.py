@@ -1,7 +1,7 @@
 import pygame
 from pygame import Surface
 from chess_logic import *
-
+import threading
 
 chess = ChessLogic()
 
@@ -146,6 +146,14 @@ def draw_pieces(surface, board_pos, images, side, cell_size):
                 y, x = i, j
             if piece != '--':
                 surface.blit(images[piece], (x * cell_size, y * cell_size))
+                
+                
+def opponent_play(chess: ChessLogic, board_state: list, moves: list) -> None:
+    move = chess.get_best_move()
+    chess.push(move)
+    board_state[:] = chess.get_chess_board()
+    encoded_moves = chess.find_available_moves()
+    moves[:] = chess.moves_to_data(encoded_moves)
 
 def main():
     pygame.init()
@@ -228,9 +236,11 @@ def main():
                             promotion = None
                             drag_start = (None, None)
                             dragging_piece = None
-                            moves_bb = chess.find_available_moves()
-                            moves = chess.moves_to_data(moves_bb)
+                            # moves_bb = chess.find_available_moves()
+                            # moves = chess.moves_to_data(moves_bb)
+                            moves = [0] * 64
                             board_state = chess.get_chess_board()
+                            threading.Thread(target=(opponent_play), args=(chess, board_state, moves)).start()
 
                 elif dragging:
                     mx, my = pygame.mouse.get_pos()
@@ -250,9 +260,12 @@ def main():
                                 move_to_push = encode_move(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col, flag=current_flag)
                                 chess.push(move_to_push)
                                 
-                                moves_bb = chess.find_available_moves()
-                                moves = chess.moves_to_data(moves_bb)
+                                # moves_bb = chess.find_available_moves()
+                                # moves = chess.moves_to_data(moves_bb)
+                                moves = [0] * 64
                                 board_state = chess.get_chess_board()
+                                threading.Thread(target=(opponent_play), args=(chess, board_state, moves)).start()
+                                print(moves)
                             
                         else:
                             board_state[drag_start[0]][drag_start[1]] = dragging_piece
