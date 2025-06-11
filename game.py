@@ -39,7 +39,6 @@ class Game:
         self.moves = self.chess.moves_to_data(moves_bb)
         
     def reset(self):
-        print('resetting')
         self.chess.restart()
         self.board_state = copy.deepcopy(INITIAL_POSITION)
         self.is_beginning = True

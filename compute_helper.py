@@ -86,14 +86,13 @@ def unpack_castle(mask: int):
     return bool(mask&1), bool(mask&2), bool(mask&4), bool(mask&8)
 
 
-
-
-
 init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 RANK_1 = 0x00000000000000FF
 RANK_8 = 0xFF00000000000000
 
+RANK_4 = 0x00000000FF000000
+RANK_5 = 0x000000FF00000000
 
 RANK_2 = 0x000000000000FF00  
 RANK_7 = 0x00FF000000000000 
@@ -391,6 +390,16 @@ def build_bishop_table(square: int) -> list[int]:
         idxs.append(idx)
     return table
 
+def build_double_push_mask(sq):
+    if SQ_MASK[sq] & RANK_2:
+        return SQ_MASK[sq+8] | SQ_MASK[sq + 16]
+    elif SQ_MASK[sq] & RANK_7:
+         return SQ_MASK[sq-8] | SQ_MASK[sq - 16]
+    else:
+        return 0
+    
+        
+
 
 def build_between_diagonal(from_sq, to_sq):
     diagonal = 0
@@ -406,6 +415,7 @@ def build_between_diagonal(from_sq, to_sq):
         diagonal |= 1 << (from_row + step_row*i)*8 + (from_col + step_col*i)
 
     return diagonal
+
 
 
 def build_between_line(from_sq, to_sq):
@@ -452,6 +462,9 @@ WHITE_KING_EMPTY = 0x0000000000000060  # f1, g1
 WHITE_QUEEN_EMPTY = 0x000000000000000E  # b1, c1, d1
 BLACK_KING_EMPTY = 0x6000000000000000  # f8, g8
 BLACK_QUEEN_EMPTY = 0x0E00000000000000  # b8, c8, d8
+PAWN_DOUBLE_PUSH_TABLE = [
+    build_double_push_mask(sq) for sq in range(64)
+]
 WHITE_PAWN_ATTACK_TABLE = [
     precompute_pawn_attacks(sq, 'white') for sq in range(64)]
 BLACK_PAWN_ATTACK_TABLE = [

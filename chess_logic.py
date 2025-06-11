@@ -241,7 +241,6 @@ class ChessLogic:
             BLACK_QUEEN:  'bq',
             BLACK_KING:   'bk',
         }
-        print(self.piece_at)
         for i in range(64):
             ui_table[7-(i // 8)].append(index_to_char[self.piece_at[i]])
             
@@ -349,56 +348,43 @@ class ChessLogic:
         return moves
     
     
-    def calculate_pawn_moves(self, sq, all_occ, our_side_occ, other_side_occ, side = WHITE):
+    def calculate_pawn_moves(self, sq, side = WHITE):
         moves = 0
         row, col = divmod(sq, 8)
-        if side == WHITE:
-            # calculate the attack squares
-            moves |= other_side_occ & WHITE_PAWN_ATTACK_TABLE[sq]
+        
+        other_side_occ = self.occ[side^1]
+        attack_mask = WHITE_PAWN_ATTACK_TABLE if side == WHITE else BLACK_PAWN_ATTACK_TABLE
+        en_passant_rank = RANK_5 if side == WHITE else RANK_4
+        start_rank = RANK_2 if side == WHITE else RANK_7
+        
+        # calculate the attack squares
+        moves |= other_side_occ & attack_mask[sq]
+        
+        # double pawn push
+        if (SQ_MASK[sq] & start_rank) and not (PAWN_DOUBLE_PUSH_TABLE[sq] & self.all_occ):
+            moves |= SQ_MASK[sq + 16 - 32*side]
             
-            # double pawn push
-            if row == 1 and not (0b100000001 << (row + 1) * 8 + col) & all_occ:
-                moves |= 1 << (24 + col)
-                
-            # single pawn push
-            if row < 7:
-                if (1 << (row + 1)*8 + col) & ~all_occ:
-                    moves |= 1 << (row + 1)*8 +col
-            
-            # en passen
-            if self.en_passant is not None:
-                if row == 4:
-                    if col + 1 <= 7:
-                        if (row + 1)*8 + (col + 1) == self.en_passant:
-                            moves |= 1 << self.en_passant
-                    if col -1 >= 0:
-                        if (row + 1)*8 + (col - 1) == self.en_passant:
-                            moves |= 1 << self.en_passant
-                    
-                     
-        else:
-            # calculate the attack squares
-            moves |= other_side_occ & BLACK_PAWN_ATTACK_TABLE[sq]
-            
-            # double pawn push
-            if row == 6 and not (0b100000001 << (row - 2) * 8 + col) & all_occ:
-                moves |= 1 << 32 + col
-            
-            # single pawn push
-            if row > 0:
-                if (1 << (row - 1)*8 + col) & ~all_occ:
-                    moves |= 1 << (row - 1)*8 +col
-                    
-            # en passen
-            if self.en_passant is not None:
-                if row == 3:
-                    if col + 1 <= 7:
-                        if (row - 1)*8 + (col + 1) == self.en_passant:
-                            moves |= 1 << self.en_passant
-                    if col -1 >= 0:
-                        if (row - 1)*8 + (col - 1) == self.en_passant:
-                            moves |= 1 << self.en_passant
-
+        # single pawn push
+        if  0 < row < 7:
+            if (1 << (row + 1 - 2*side)*8 + col) & ~self.all_occ:
+                moves |= SQ_MASK[sq + 8 -16*side]
+        
+        # en passen
+        if self.en_passant is not None:
+            if en_passant_rank & SQ_MASK[sq]:
+                if attack_mask[sq] & SQ_MASK[self.en_passant]:
+                    if en_passant_rank & self.bb[side][KING]:
+                        king_pos = self.bb[side][KING].bit_length() - 1 
+                        rook_and_queen = self.bb[side^1][ROOK] | self.bb[side^1][QUEEN]
+                        rook_same_rank = en_passant_rank & rook_and_queen
+                        while rook_same_rank:
+                            lsb = rook_same_rank & -rook_same_rank
+                            rook_sq = lsb.bit_length() - 1
+                            ray = ROOK_BETWEEN_MASK[rook_sq][king_pos] & self.all_occ
+                            if ray & SQ_MASK[sq] and ray.bit_count() == 3:                            
+                                return moves
+                            rook_same_rank &= rook_same_rank - 1        
+                    moves |= SQ_MASK[self.en_passant]
         return moves
     
     def negamax(self, alpha= -INF, beta= INF, color = 1, depth = 2):
@@ -607,7 +593,7 @@ class ChessLogic:
             while bits:
                 lsb = bits & -bits
                 i = lsb.bit_length() - 1
-                pawn_movable = self.calculate_pawn_moves(i, self.all_occ, self.occ[our_side], self.occ[other_side], self.side)
+                pawn_movable = self.calculate_pawn_moves(i, self.side)
                 if pinned[i]:
                     pawn_movable &= pinned[i]
                 if checked:
