@@ -385,42 +385,57 @@ class ChessLogic:
 
         return moves
     
-    def get_best_move(self, depth = 3):
+    def negamax(self, alpha= -INF, beta= INF, color = 1, depth = 2):
+        """note that 1 for white and -1 for black"""
         moves = self.find_available_moves()
-        best_move = None
-        # return score at leaf
+        best_score = -INF
+        
+        # return score at leaf or when checkmated
         if depth == 0 or not moves:
-            score = self.evaluate()
-            return best_move, score
+            return self.evaluate() * color
         
+        # always get the maximize value with negamax  
+        for move in moves:
+            self.push(move)
+            score =  self.negamax(alpha = -beta, beta = -alpha, color = -color, depth=depth-1)
+            score = -score
+            self.unpush()
+            if score > best_score:
+                best_score = score
+                alpha = best_score
         
-        # max when white, min when black
-        if self.side == WHITE:
-            best_score, best_move = -INF, None
-            for move in moves:
-                self.push(move)
-                _, score = self.get_best_move(depth=depth-1)
-                self.unpush()
-                if score > best_score:
-                    best_move = move
-                    best_score = score
-           
-        else:
-            best_score, best_move = INF, None
-            for move in moves:
-                self.push(move)
-                _, score = self.get_best_move(depth=depth-1)
-                self.unpush()
-                if score < best_score:
-                    best_score = score
-                    best_move = move
+            if alpha >= beta:
+                break    
+            
 
-        return best_move, best_score
+        return best_score
+    
+    def get_best_move(self, depth= 3):
+        moves = self.find_available_moves()
+        if not moves:
+            return None
+        alpha= -INF
+        beta= INF
+        color = 1 if self.side == WHITE else -1
+        best_score = -INF
+        best_move = None
+        for move in moves:
+            self.push(move)
+            score = - self.negamax(alpha= -beta, beta= -alpha, color = -color, depth=depth -1)
+            self.unpush()
+            if score > best_score:
+                best_move = move
+                best_score = score
+                alpha = score
+            if alpha >= beta:
+                break
+        return best_move    
+
     
     
     def evaluate(self):
         import random
-        return random.choice(range(900))
+        return random.choice(range(-900, 901))
     
     def find_available_moves(self):
         our_side = self.side
