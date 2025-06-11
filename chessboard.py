@@ -2,8 +2,11 @@ import pygame
 from pygame import Surface
 from chess_logic import *
 import threading
+from game import Game
+import sys
+game = Game()
 
-chess = ChessLogic()
+
 
 # --- Config and Constants ---
 CELL_SIZE = 100
@@ -16,16 +19,8 @@ start_square_color = (120, 200, 100, 128)
 movable_color = (120, 200, 144, 100)
 LETTERS = 'abcdefgh'
 PIECES = ['wp', 'bp', 'wn', 'bn', 'wb', 'bb', 'wr', 'br', 'wq', 'bq', 'wk', 'bk']
-INITIAL_POSITION = [
-    ["br", "bn", "bb", "bq", "bk", "bb", "bn", "br"],
-    ["bp", "bp", "bp", "bp", "bp", "bp", "bp", "bp"],
-    ["--", "--", "--", "--", "--", "--", "--", "--"],
-    ["--", "--", "--", "--", "--", "--", "--", "--"],
-    ["--", "--", "--", "--", "--", "--", "--", "--"],
-    ["--", "--", "--", "--", "--", "--", "--", "--"],
-    ["wp", "wp", "wp", "wp", "wp", "wp", "wp", "wp"],
-    ["wr", "wn", "wb", "wq", "wk", "wb", "wn", "wr"]
-]
+END_SCENE_COLOR = (40,40,40) 
+TEXT_COLOR = (152, 255, 152)
 
 PIECE_TO_INDEX = {
             'wp': 0, 'wn': 1, 'wb': 2, 'wr': 3, 'wq': 4, 'wk': 5,
@@ -146,14 +141,67 @@ def draw_pieces(surface, board_pos, images, side, cell_size):
                 y, x = i, j
             if piece != '--':
                 surface.blit(images[piece], (x * cell_size, y * cell_size))
+       
+def quit_game():
+    pygame.quit()
+    sys.exit()
+    
+    
+def play_again():
+    game.reset()
+
+class Button:
+    def __init__(self, rect, text, base_color, hover_color, action):
+        self.rect = pygame.Rect(rect)
+        self.text = text
+        self.base_color = base_color
+        self.hover_color = hover_color
+        self.action = action
+        self.hovered = False
+
+    def draw(self, surface, font):
+        color = self.hover_color if self.hovered else self.base_color
+        pygame.draw.rect(surface, color, self.rect)
+        text_surf = font.render(self.text, True, TEXT_COLOR)
+        text_rect = text_surf.get_rect(center=self.rect.center)
+        surface.blit(text_surf, text_rect)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            self.hovered = self.rect.collidepoint(event.pos)
+        elif event.type == pygame.MOUSEBUTTONDOWN and self.hovered:
+            self.action()
+        
+def display_end_scene(surface: Surface, win_side, buttons):
+    end_board = Surface((CELL_SIZE *5, CELL_SIZE*3))
+    end_board.fill(END_SCENE_COLOR)
+    font = pygame.font.Font(None, 100)
+    
+    # put a label for who won
+    notify_label = font.render(f"{win_side} won!", True, TEXT_COLOR)
+    end_board.blit(notify_label, (end_board.get_width()//2 - notify_label.get_width()//2, end_board.get_height()*0.2))
+    
+    
+    # end scene, let you choose between rage quit or try again
+    
+    
+    surface.blit(end_board, (surface.get_width()//2 - end_board.get_width()//2, surface.get_height()//2 - end_board.get_height()//2))
                 
-                
+ 
 def opponent_play(chess: ChessLogic, board_state: list, moves: list) -> None:
     move = chess.get_best_move()
+    if not move:
+        game.moves = []
+        game.end = True
+        return
     chess.push(move)
     board_state[:] = chess.get_chess_board()
     encoded_moves = chess.find_available_moves()
-    moves[:] = chess.moves_to_data(encoded_moves)
+    if not encoded_moves:
+        game.end = True
+        game.game.moves = []
+        return
+    game.moves[:] = chess.moves_to_data(encoded_moves)
 
 def main():
     pygame.init()
@@ -163,35 +211,58 @@ def main():
     piece_images = load_piece_images(CELL_SIZE)
     side = 'white'  # or 'black'
     running = True
-    board_state = INITIAL_POSITION
+    
+    end_buttons = []
+    button_width, button_height = 200, 60
+    spacing = 20
+    end_w, end_h = (CELL_SIZE *5, CELL_SIZE*3)
+    print(end_w, end_h)
+    board_x = (screen.get_width() ) // 2
+    board_y = (screen.get_height()) // 2 - 10
+
+    quit_btn = Button(
+        (board_x - button_width - spacing//2,
+         board_y + 50,
+         button_width,
+         button_height),
+        "Quit", (180, 50, 50), (255, 100, 100), quit_game)
+    play_btn = Button(
+        (board_x + spacing//2,
+         board_y + 50,
+         button_width,
+         button_height),
+        "Play Again", (50, 180, 50), (100, 255, 100), play_again)
+    end_buttons = [quit_btn, play_btn]
+    
     promotion = None
     dragging = False
     dragging_piece = None
-    moves_bb = chess.find_available_moves()
-    moves = chess.moves_to_data(moves_bb)
-    print(moves)
     drag_start = (None, None)
+    
 
     # Prepare the board surface
     board = Surface((BOARD_SIZE, BOARD_SIZE))
     board.fill((255, 255, 255))
-    draw_board(board, CELL_SIZE)
-    draw_labels(board, font, side, CELL_SIZE, LABEL_OFFSET)
-    draw_pieces(board, INITIAL_POSITION, piece_images, side, CELL_SIZE)
 
     # Main loop
     while running:
         board.fill((255, 255, 255))
         draw_board(board, CELL_SIZE)
         draw_labels(board, font, 'white', CELL_SIZE, LABEL_OFFSET)
-        draw_pieces(board, board_state, piece_images, 'white', CELL_SIZE)
-        
+        draw_pieces(board, game.board_state, piece_images, 'white', CELL_SIZE)
+        if game.end:
+            display_end_scene(board, 'white', end_buttons)
+            for button in end_buttons:
+                button.draw(board, pygame.font.Font(None, 40))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if promotion is not None:
+                if game.end:
+                    for button in end_buttons:
+                        button.handle_event(event)
+                elif promotion is not None:
                     pass
                 else:
                     mx, my = pygame.mouse.get_pos()
@@ -199,18 +270,19 @@ def main():
                     col = (mx // CELL_SIZE)
                     if row < 0 or row > 7 or col < 0 or col > 7:
                         continue
-                    if board_state[row][col] == '--':
+                    if game.board_state[row][col] == '--':
                         continue
-                    if not moves[(7-row)*8 + col]:
+                    if not game.moves[(7-row)*8 + col]:
                         continue
                     
-                    dragging_piece = board_state[row][col]
-                    # board_state[row][col] = '--'
+                    dragging_piece = game.board_state[row][col]
                     dragging = True
                     drag_start = (row, col)
                 
             elif event.type == pygame.MOUSEBUTTONUP:
-                if promotion is not None:
+                if game.end:
+                    pass
+                elif promotion is not None:
                     mx, my = pygame.mouse.get_pos()
                     row = (my // CELL_SIZE)
                     col = (mx // CELL_SIZE)
@@ -230,17 +302,17 @@ def main():
                         if promote_piece is not None:
                            
                             
-                            board_state[drag_start[0]][drag_start[1]] = '--'
-                            move_to_push = encode_move((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, flag = chess.get_flag((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, promote_piece))
-                            chess.push(move_to_push)
+                            game.board_state[drag_start[0]][drag_start[1]] = '--'
+                            move_to_push = encode_move((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, flag = game.chess.get_flag((7-drag_start[0])*8 + drag_start[1], (row_promo)*8 + col_prommo, promote_piece))
+                            game.chess.push(move_to_push)
                             promotion = None
                             drag_start = (None, None)
                             dragging_piece = None
                             # moves_bb = chess.find_available_moves()
                             # moves = chess.moves_to_data(moves_bb)
-                            moves = [0] * 64
-                            board_state = chess.get_chess_board()
-                            threading.Thread(target=(opponent_play), args=(chess, board_state, moves)).start()
+                            game.moves = [0] * 64
+                            game.board_state = game.chess.get_chess_board()
+                            threading.Thread(target=(opponent_play), args=(game.chess, game.board_state, game.moves)).start()
 
                 elif dragging:
                     mx, my = pygame.mouse.get_pos()
@@ -248,32 +320,34 @@ def main():
                     row = (my // CELL_SIZE)
                     col = (mx // CELL_SIZE)
                     if 0 <= row <= 7 and 0 <= col <= 7:
-                        if (1 << (7-row) * 8 + col) & moves[(7-drag_start[0])*8 + drag_start[1]]:
+                        if (1 << (7-row) * 8 + col) & game.moves[(7-drag_start[0])*8 + drag_start[1]]:
                             if row == 0 and dragging_piece in ('wp', 'bp'):
                                 promotion = (7-row)*8 + col
                                 
                             if not promotion:
-                                board_state[row][col] = dragging_piece
-                                board_state[drag_start[0]][drag_start[1]] = '--'
+                                game.board_state[row][col] = dragging_piece
+                                game.board_state[drag_start[0]][drag_start[1]] = '--'
                                 print((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col)
-                                current_flag = chess.get_flag(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col)
+                                current_flag = game.chess.get_flag(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col)
                                 move_to_push = encode_move(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col, flag=current_flag)
-                                chess.push(move_to_push)
+                                game.chess.push(move_to_push)
                                 
-                                # moves_bb = chess.find_available_moves()
-                                # moves = chess.moves_to_data(moves_bb)
-                                moves = [0] * 64
-                                board_state = chess.get_chess_board()
-                                threading.Thread(target=(opponent_play), args=(chess, board_state, moves)).start()
-                                print(moves)
+                                game.moves = [0] * 64
+                                game.board_state = game.chess.get_chess_board()
+                                threading.Thread(target=(opponent_play), args=(game.chess, game.board_state, game.moves)).start()
+                                print(game.moves)
                             
                         else:
-                            board_state[drag_start[0]][drag_start[1]] = dragging_piece
+                            game.board_state[drag_start[0]][drag_start[1]] = dragging_piece
                     else:
-                        board_state[drag_start[0]][drag_start[1]] = dragging_piece
+                        game.board_state[drag_start[0]][drag_start[1]] = dragging_piece
                     if not promotion:
                         drag_start = (None, None)
                         dragging_piece = None
+            elif event.type == pygame.MOUSEMOTION:
+                if game.end:
+                    for button in end_buttons:
+                        button.handle_event(event)
 
         if promotion is not None:
             row, col = divmod(promotion, 8)
@@ -284,10 +358,10 @@ def main():
             mx, my = pygame.mouse.get_pos()
             row = (my // CELL_SIZE)
             col = (mx // CELL_SIZE)
-            draw_movable_squares(board, board_state,CELL_SIZE, moves[(7-drag_start[0])*8 + drag_start[1]])
+            draw_movable_squares(board, game.board_state,CELL_SIZE, game.moves[(7-drag_start[0])*8 + drag_start[1]])
             draw_start_square(board, CELL_SIZE, drag_start[1], drag_start[0])
             if 0 <= row <= 7 and 0 <= col <= 7:
-                if (1 << (7-row)*8 + col) & (moves[(7-drag_start[0])*8 + drag_start[1]]):
+                if (1 << (7-row)*8 + col) & (game.moves[(7-drag_start[0])*8 + drag_start[1]]):
                     draw_hovered(board, CELL_SIZE, col, row)
             board.blit(piece_images[dragging_piece], (mx - piece_images[dragging_piece].get_width() // 2, my - piece_images[dragging_piece].get_height() // 2))
                 

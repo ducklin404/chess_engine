@@ -15,7 +15,23 @@ class ChessLogic:
         self.bb = self.fen_to_bitboard(init_fen)
         self.build_occ()
 
-    
+    def restart(self):
+        self.side = WHITE
+        self.en_passant = None
+        self.white_king_castle = True
+        self.black_king_castle = True
+        self.black_queen_castle = True
+        self.white_queen_castle = True
+        self.history = []
+        self.piece_at = INITIAL_PIECE_AT
+        self.bb = self.fen_to_bitboard(init_fen)
+        self.build_occ()
+        
+    def is_check_mate(self):
+        moves = self.find_available_moves()
+        if not moves:
+            return True
+        return False
     
         
     def fen_to_bitboard(self, fen: str):
@@ -429,7 +445,7 @@ class ChessLogic:
                 alpha = score
             if alpha >= beta:
                 break
-        return best_move    
+        return best_move
 
     
     
