@@ -385,10 +385,42 @@ class ChessLogic:
 
         return moves
     
-    def get_best_move(self):
-        import random
+    def get_best_move(self, depth = 3):
         moves = self.find_available_moves()
-        return random.choice(moves)
+        best_move = None
+        # return score at leaf
+        if depth == 0 or not moves:
+            score = self.evaluate()
+            return best_move, score
+        
+        
+        # max when white, min when black
+        if self.side == WHITE:
+            best_score, best_move = -INF, None
+            for move in moves:
+                self.push(move)
+                _, score = self.get_best_move(depth=depth-1)
+                self.unpush()
+                if score > best_score:
+                    best_move = move
+                    best_score = score
+           
+        else:
+            best_score, best_move = INF, None
+            for move in moves:
+                self.push(move)
+                _, score = self.get_best_move(depth=depth-1)
+                self.unpush()
+                if score < best_score:
+                    best_score = score
+                    best_move = move
+
+        return best_move, best_score
+    
+    
+    def evaluate(self):
+        import random
+        return random.choice(range(900))
     
     def find_available_moves(self):
         our_side = self.side
@@ -423,7 +455,6 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & self.all_occ
-            print('bishop count', _bishop_mask.bit_count())
             if _bishop_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
@@ -462,7 +493,6 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & self.all_occ
-            print('rook count', _rook_mask.bit_count())
             if _rook_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
@@ -484,8 +514,6 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             _bishop_mask = BISHOP_BETWEEN_MASK[sq][king_sq] & self.all_occ
-            print(bin(BISHOP_BETWEEN_MASK[sq][king_sq]))
-            print('bishop count', _bishop_mask.bit_count())
             if _bishop_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = BISHOP_BETWEEN_MASK[sq][king_sq]
@@ -495,8 +523,6 @@ class ChessLogic:
                     blocker_sq   = blocker_bb.bit_length() - 1      
                     pinned[blocker_sq ] = BISHOP_BETWEEN_MASK[sq][king_sq]
             _rook_mask = ROOK_BETWEEN_MASK[sq][king_sq] & self.all_occ
-            print(bin(ROOK_BETWEEN_MASK[sq][king_sq]))
-            print('rook count', _rook_mask.bit_count())
             if _rook_mask.bit_count() == 1:
                 checked += 1
                 checked_mask = ROOK_BETWEEN_MASK[sq][king_sq]
@@ -520,8 +546,6 @@ class ChessLogic:
             
             bits &= bits - 1
             
-            
-        print(checked)
         
         # Black King
         bits = self.bb[other_side][KING]
@@ -538,7 +562,6 @@ class ChessLogic:
         while bits:
             lsb = bits & -bits
             i = lsb.bit_length() - 1
-            print(bin(attacked_mask))
             king_movable = self.calculate_king_moves(i, self.occ[our_side], self.all_occ, attacked_mask, self.side)
             while king_movable:
                 lsb = king_movable & -king_movable
@@ -678,8 +701,7 @@ if __name__ == "__main__":
     logic = ChessLogic()
     # fen = 'rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1'
     # bb = logic.fen_to_bitboard(fen)
-    result = logic.find_available_moves()
-    for move in result:
-        print(bin(move))
+    result = logic.get_best_move(depth=3)
+    print(bin(result[0]), result[1])
         
 

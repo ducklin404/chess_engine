@@ -4,6 +4,8 @@ import pickle
 from dataclasses import dataclass
 from typing import List, Tuple
 
+from math import inf as INF
+
 MASK64 = 0xFFFFFFFFFFFFFFFF
 
 
