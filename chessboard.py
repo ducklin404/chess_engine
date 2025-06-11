@@ -7,10 +7,13 @@ import sys
 game = Game()
 
 
+# CHoose your side here
+side = 'black'  # or 'black'
+
 
 # --- Config and Constants ---
 CELL_SIZE = 100
-LABEL_OFFSET = 0.85
+LABEL_OFFSET = 0.88
 BOARD_SIZE = CELL_SIZE * 8
 DARK = (118, 150,  86)
 LIGHT = (238, 238, 210)
@@ -28,11 +31,18 @@ PIECE_TO_INDEX = {
         }
 
 
-def load_piece_images(cell_size):
+def load_piece_images(cell_size, side):
     piece_images = {}
-    for piece in PIECES:
-        img = pygame.image.load(f'pieces/{piece}.png')
-        piece_images[piece] = pygame.transform.scale(img, (cell_size, cell_size))
+    if side == 'white':
+        for piece in PIECES:
+            img = pygame.image.load(f'pieces/{piece}.png')
+            piece_images[piece] = pygame.transform.scale(img, (cell_size, cell_size))
+    else:
+        for piece in PIECES:
+            
+            img = pygame.image.load(f'pieces/{piece}.png')
+            piece = 'b' + piece[1] if piece.startswith('w') else 'w' + piece[1]
+            piece_images[piece] = pygame.transform.scale(img, (cell_size, cell_size))
     return piece_images
 
 def draw_board(surface, cell_size):
@@ -69,7 +79,7 @@ def draw_can_capture_square(surface, cell_size, x, y):
     surface.blit(circle_surf, (x * cell_size , y * cell_size))
 
 def show_promotion_options(surface, cell_size, col, side ='white'):
-    images = load_piece_images(CELL_SIZE * 0.8)
+    images = load_piece_images(CELL_SIZE * 0.8, side)
     image_offset = cell_size * 0.1
     mask = pygame.Surface((cell_size * 8, cell_size*8), pygame.SRCALPHA)
     mask.fill((0,0,0,200))
@@ -149,6 +159,7 @@ def quit_game():
     
 def play_again():
     game.reset()
+    threading.Thread(target=game.start, args=(side, )).start()
 
 class Button:
     def __init__(self, rect, text, base_color, hover_color, action):
@@ -172,7 +183,7 @@ class Button:
         elif event.type == pygame.MOUSEBUTTONDOWN and self.hovered:
             self.action()
         
-def display_end_scene(surface: Surface, win_side, buttons):
+def display_end_scene(surface: Surface, win_side):
     end_board = Surface((CELL_SIZE *5, CELL_SIZE*3))
     end_board.fill(END_SCENE_COLOR)
     font = pygame.font.Font(None, 100)
@@ -191,7 +202,7 @@ def display_end_scene(surface: Surface, win_side, buttons):
 def opponent_play(chess: ChessLogic, board_state: list, moves: list) -> None:
     move = chess.get_best_move()
     if not move:
-        game.moves = []
+        game.moves = [0] * 64
         game.end = True
         return
     chess.push(move)
@@ -199,7 +210,7 @@ def opponent_play(chess: ChessLogic, board_state: list, moves: list) -> None:
     encoded_moves = chess.find_available_moves()
     if not encoded_moves:
         game.end = True
-        game.game.moves = []
+        game.moves = [0] * 64
         return
     game.moves[:] = chess.moves_to_data(encoded_moves)
 
@@ -208,15 +219,15 @@ def main():
     screen = pygame.display.set_mode((BOARD_SIZE, BOARD_SIZE))
     pygame.display.set_caption("chess engine hehehe")
     font = pygame.font.SysFont(None, 24, bold=True)
-    piece_images = load_piece_images(CELL_SIZE)
-    side = 'white'  # or 'black'
+    
+    piece_images = load_piece_images(CELL_SIZE, side )
+    
     running = True
     
     end_buttons = []
     button_width, button_height = 200, 60
     spacing = 20
     end_w, end_h = (CELL_SIZE *5, CELL_SIZE*3)
-    print(end_w, end_h)
     board_x = (screen.get_width() ) // 2
     board_y = (screen.get_height()) // 2 - 10
 
@@ -243,18 +254,21 @@ def main():
     # Prepare the board surface
     board = Surface((BOARD_SIZE, BOARD_SIZE))
     board.fill((255, 255, 255))
-
+    threading.Thread(target=game.start, args=(side, )).start()
     # Main loop
     while running:
         board.fill((255, 255, 255))
         draw_board(board, CELL_SIZE)
-        draw_labels(board, font, 'white', CELL_SIZE, LABEL_OFFSET)
+        draw_labels(board, font, side, CELL_SIZE, LABEL_OFFSET)
         draw_pieces(board, game.board_state, piece_images, 'white', CELL_SIZE)
+        # game.start(side)
+        
         if game.end:
-            display_end_scene(board, 'white', end_buttons)
+            display_end_scene(board, side)
             for button in end_buttons:
                 button.draw(board, pygame.font.Font(None, 40))
         for event in pygame.event.get():
+            
             if event.type == pygame.QUIT:
                 running = False
                 
@@ -327,7 +341,6 @@ def main():
                             if not promotion:
                                 game.board_state[row][col] = dragging_piece
                                 game.board_state[drag_start[0]][drag_start[1]] = '--'
-                                print((7-drag_start[0])*8 + drag_start[1], (7-row)*8 + col)
                                 current_flag = game.chess.get_flag(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col)
                                 move_to_push = encode_move(from_sq = (7-drag_start[0])*8 + drag_start[1], to_sq = (7-row)*8 + col, flag=current_flag)
                                 game.chess.push(move_to_push)
@@ -335,7 +348,6 @@ def main():
                                 game.moves = [0] * 64
                                 game.board_state = game.chess.get_chess_board()
                                 threading.Thread(target=(opponent_play), args=(game.chess, game.board_state, game.moves)).start()
-                                print(game.moves)
                             
                         else:
                             game.board_state[drag_start[0]][drag_start[1]] = dragging_piece
@@ -351,7 +363,7 @@ def main():
 
         if promotion is not None:
             row, col = divmod(promotion, 8)
-            show_promotion_options(board, CELL_SIZE, col)
+            show_promotion_options(board, CELL_SIZE, col, side)
 
         
         if dragging:
