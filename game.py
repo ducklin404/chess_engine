@@ -1,4 +1,5 @@
 from chess_logic import ChessLogic
+import copy
 from compute_helper import BLACK
 
 INITIAL_POSITION = [
@@ -15,7 +16,7 @@ INITIAL_POSITION = [
 class Game:
     def __init__(self):
         self.chess = ChessLogic()
-        self.board_state = INITIAL_POSITION
+        self.board_state = copy.deepcopy(INITIAL_POSITION)
         self.is_beginning = True
         self.end = False
         self.moves = [0] * 64
@@ -38,8 +39,9 @@ class Game:
         self.moves = self.chess.moves_to_data(moves_bb)
         
     def reset(self):
+        print('resetting')
         self.chess.restart()
-        self.board_state = INITIAL_POSITION
+        self.board_state = copy.deepcopy(INITIAL_POSITION)
         self.is_beginning = True
         self.end = False
         self.moves = [0] * 64

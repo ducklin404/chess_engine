@@ -1,5 +1,5 @@
 from compute_helper import *
-
+from copy import deepcopy
 
 
 class ChessLogic:
@@ -11,7 +11,7 @@ class ChessLogic:
         self.black_queen_castle = True
         self.white_queen_castle = True
         self.history = []
-        self.piece_at = INITIAL_PIECE_AT
+        self.piece_at = deepcopy(INITIAL_PIECE_AT)
         self.bb = self.fen_to_bitboard(init_fen)
         self.build_occ()
 
@@ -23,7 +23,7 @@ class ChessLogic:
         self.black_queen_castle = True
         self.white_queen_castle = True
         self.history = []
-        self.piece_at = INITIAL_PIECE_AT
+        self.piece_at = deepcopy(INITIAL_PIECE_AT)
         self.bb = self.fen_to_bitboard(init_fen)
         self.build_occ()
         
@@ -241,7 +241,7 @@ class ChessLogic:
             BLACK_QUEEN:  'bq',
             BLACK_KING:   'bk',
         }
-        count = 0
+        print(self.piece_at)
         for i in range(64):
             ui_table[7-(i // 8)].append(index_to_char[self.piece_at[i]])
             

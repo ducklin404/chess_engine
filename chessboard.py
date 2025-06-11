@@ -9,7 +9,7 @@ game = Game()
 
 # CHoose your side here
 side = 'black'  # or 'black'
-
+# side = 'white'
 
 # --- Config and Constants ---
 CELL_SIZE = 100
