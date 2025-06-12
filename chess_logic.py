@@ -10,6 +10,8 @@ class ChessLogic:
         self.black_king_castle = True
         self.black_queen_castle = True
         self.white_queen_castle = True
+        self.attacked_mask = 0
+        self.pawn_attack_mask = 0
         self.history = []
         self.piece_at = deepcopy(INITIAL_PIECE_AT)
         self.bb = self.fen_to_bitboard(init_fen)
@@ -22,16 +24,12 @@ class ChessLogic:
         self.black_king_castle = True
         self.black_queen_castle = True
         self.white_queen_castle = True
+        self.attacked_mask = 0
+        self.pawn_attack_mask = 0
         self.history = []
         self.piece_at = deepcopy(INITIAL_PIECE_AT)
         self.bb = self.fen_to_bitboard(init_fen)
         self.build_occ()
-        
-    def is_check_mate(self):
-        moves = self.find_available_moves()
-        if not moves:
-            return True
-        return False
     
         
     def fen_to_bitboard(self, fen: str):
@@ -387,30 +385,90 @@ class ChessLogic:
                     moves |= SQ_MASK[self.en_passant]
         return moves
     
-    def negamax(self, alpha= -INF, beta= INF, color = 1, depth = 2):
-        """note that 1 for white and -1 for black"""
-        moves = self.find_available_moves()
-        best_score = -INF
-        
-        # return score at leaf or when checkmated
-        if depth == 0 or not moves:
-            return self.evaluate() * color
-        
-        # always get the maximize value with negamax  
+
+    
+    def order_moves(self, moves):
+        """
+        prioritize making high potential piece first
+        """
+        scored = []
         for move in moves:
+            score = 0
+            from_sq, to_sq, flag = decode_move(move)
+            
+            moved_piece = self.piece_at[from_sq]
+            captured_piece = self.piece_at[to_sq]
+
+            # 1) prioritize capture with lower value piece
+            if captured_piece != NO_PIECE:
+                score = 10 * PIECE_VALUES[captured_piece] - PIECE_VALUES[moved_piece]
+
+            # 2) prioritize promotion
+            if flag & 8:
+                score += PIECE_VALUES[(flag & 3) + 1]
+
+            # 3) penalize moving into an opponent‐pawn attack
+            if SQ_MASK[to_sq] & self.pawn_attack_mask:
+                score -= PIECE_VALUES[moved_piece]
+
+            scored.append((score, move))
+
+        # now sort descending by score and unpack
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [mv for _, mv in scored]
+    
+    def calculate_captured(self, alpha= -INF, beta= INF, depth = 5):        
+        # prune if it's no better
+        score = self.evaluate()
+        if score >= beta:
+            return beta
+        alpha = max(alpha, score)
+        
+        if depth  == 0:
+            return alpha
+        
+        
+        capture_moves = [move for move in self.find_available_moves() if move & (1 << 14)]
+        self.order_moves(capture_moves)
+        # always get the maximize value with negamax  
+        for move in capture_moves:
             self.push(move)
-            score =  self.negamax(alpha = -beta, beta = -alpha, color = -color, depth=depth-1)
-            score = -score
+            score =  -self.calculate_captured(alpha = -beta, beta = -alpha, depth = depth - 1)
             self.unpush()
-            if score > best_score:
-                best_score = score
-                alpha = best_score
+            alpha = max(score, alpha)
         
             if alpha >= beta:
                 break    
             
 
-        return best_score
+        return alpha
+    
+    def negamax(self, alpha= -INF, beta= INF, depth = 2):
+        """note that 1 for white and -1 for black"""
+        moves = self.find_available_moves()
+        
+        # return score at leaf or when checkmated
+        if not moves:
+            if self.attacked_mask & self.bb[self.side][KING]:
+                return -INF -1
+            return 0
+        if depth == 0:
+            return self.calculate_captured(alpha=alpha, beta=beta)
+        
+        self.order_moves(moves)
+        
+        # always get the maximize value with negamax  
+        for move in moves:
+            self.push(move)
+            score =  -self.negamax(alpha = -beta, beta = -alpha, depth=depth-1)
+            self.unpush()
+            alpha = max(score, alpha)
+        
+            if alpha >= beta:
+                break    
+            
+
+        return alpha
     
     def get_best_move(self, depth= 3):
         moves = self.find_available_moves()
@@ -418,12 +476,11 @@ class ChessLogic:
             return None
         alpha= -INF
         beta= INF
-        color = 1 if self.side == WHITE else -1
         best_score = -INF
         best_move = None
         for move in moves:
             self.push(move)
-            score = - self.negamax(alpha= -beta, beta= -alpha, color = -color, depth=depth -1)
+            score = - self.negamax(alpha= -beta, beta= -alpha, depth=depth -1)
             self.unpush()
             if score > best_score:
                 best_move = move
@@ -433,16 +490,29 @@ class ChessLogic:
                 break
         return best_move
 
+    def count_material(self, side = WHITE):
+        material = 0
+        material += self.bb[side][PAWN].bit_count()*PAWN_VALUE
+        material += self.bb[side][KNIGHT].bit_count()*KNIGHT_VALUE
+        material += self.bb[side][BISHOP].bit_count()*BISHOP_VALUE
+        material += self.bb[side][ROOK].bit_count()*ROOK_VALUE
+        material += self.bb[side][QUEEN].bit_count()*QUEEN_VALUE
+        return material
     
+    # def calculate_bonus_point(self, side, piece):
+
     
     def evaluate(self):
-        import random
-        return random.choice(range(-900, 901))
+        our_score = self.count_material(self.side) 
+        other_score = self.count_material(self.side^1)
+        score = our_score - other_score
+        return score 
     
     def find_available_moves(self):
         our_side = self.side
         other_side = our_side ^ 1
-        attacked_mask = 0
+        self.attacked_mask = 0
+        self.pawn_attack_mask
         pinned = [0] * 64
         moves: list[int] = []
         checked = 0
@@ -463,7 +533,7 @@ class ChessLogic:
                 checked += 1
                 checked_mask = 1 << sq
             knight_movable = KNIGHT_TABLE[sq]
-            attacked_mask |= knight_movable
+            self.attacked_mask |= knight_movable
             bits &= bits - 1
 
         # Black Bishops
@@ -485,12 +555,12 @@ class ChessLogic:
             magic_index = get_magic_index(relevant_occ, BISHOP_MAGIC[sq], BISHOP_RELEVEANT_BITS[sq])
             bishop_movable = BISHOP_TABLE[sq][magic_index]
             
-            attacked_mask |= bishop_movable        
+            self.attacked_mask |= bishop_movable        
             
             bits &= bits - 1
             
 
-        # Black Pawns
+        # Opponent Pawns
         bits = self.bb[other_side][PAWN]
         while bits:
             lsb = bits & -bits
@@ -500,7 +570,8 @@ class ChessLogic:
             if _pawn_mask:
                 checked += 1
                 checked_mask = 1 << sq
-            attacked_mask |= _pawn_attack_mask
+            self.attacked_mask |= _pawn_attack_mask
+            self.pawn_attack_mask = _pawn_attack_mask
             bits &= bits - 1
             
 
@@ -521,7 +592,7 @@ class ChessLogic:
             relevant_occ = ROOK_RELEVANT_MASK[sq] & (self.all_occ & ~self.bb[our_side][KING])
             magic_index = get_magic_index(relevant_occ, ROOK_MAGIC[sq], ROOK_RELEVEANT_BITS[sq])
             rook_movable = ROOK_TABLE[sq][magic_index]
-            attacked_mask |= rook_movable
+            self.attacked_mask |= rook_movable
             bits &= bits - 1
             
          
@@ -559,7 +630,7 @@ class ChessLogic:
             bishop_moves = BISHOP_TABLE[sq][bishop_magic_index]
 
             queen_movable = rook_moves | bishop_moves
-            attacked_mask |= queen_movable
+            self.attacked_mask |= queen_movable
             
             bits &= bits - 1
             
@@ -570,7 +641,7 @@ class ChessLogic:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
             king_movable = self.calculate_king_moves(sq, 0b0, self.all_occ, 0b0, other_side)
-            attacked_mask |= king_movable
+            self.attacked_mask |= king_movable
             bits &= bits - 1
         
         # start to find legal moves for our side
@@ -579,7 +650,7 @@ class ChessLogic:
         while bits:
             lsb = bits & -bits
             i = lsb.bit_length() - 1
-            king_movable = self.calculate_king_moves(i, self.occ[our_side], self.all_occ, attacked_mask, self.side)
+            king_movable = self.calculate_king_moves(i, self.occ[our_side], self.all_occ, self.attacked_mask, self.side)
             while king_movable:
                 lsb = king_movable & -king_movable
                 to_sq = lsb.bit_length() -1
