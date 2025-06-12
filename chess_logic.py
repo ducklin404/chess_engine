@@ -13,8 +13,8 @@ class ChessLogic:
         self.attacked_mask = 0
         self.pawn_attack_mask = 0
         self.history = []
-        self.piece_at = deepcopy(INITIAL_PIECE_AT)
         self.bb = self.fen_to_bitboard(init_fen)
+        self.bitboard_to_board()
         self.build_occ()
 
     def restart(self):
@@ -27,8 +27,8 @@ class ChessLogic:
         self.attacked_mask = 0
         self.pawn_attack_mask = 0
         self.history = []
-        self.piece_at = deepcopy(INITIAL_PIECE_AT)
         self.bb = self.fen_to_bitboard(init_fen)
+        self.bitboard_to_board()
         self.build_occ()
     
         
@@ -51,6 +51,15 @@ class ChessLogic:
             
                 
         return piece_bb
+    
+    def bitboard_to_board(self):
+        self.piece_at = [NO_PIECE ] * 64
+        for sq in range(64):
+            sq_bb = SQ_MASK[sq]
+            for side in (0, 1):
+                for piece_type in range (6):
+                    if sq_bb & self.bb[side][piece_type]:
+                        self.piece_at[sq] = piece_type + side*6
     
     
     
@@ -470,7 +479,7 @@ class ChessLogic:
 
         return alpha
     
-    def get_best_move(self, depth= 3):
+    def get_best_move(self, depth= 5):
         moves = self.find_available_moves()
         if not moves:
             return None
@@ -499,13 +508,77 @@ class ChessLogic:
         material += self.bb[side][QUEEN].bit_count()*QUEEN_VALUE
         return material
     
-    # def calculate_bonus_point(self, side, piece):
+    def calculate_bonus_point(self, side, game_phase):
+        score = 0
+        bits = self.occ[side]
+        
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            
+            piece = self.piece_at[sq] % 6
+            if piece != KING:
+                score += PIECE_TO_PST[piece][sq]
+            else:
+                score += PIECE_TO_PST[piece + game_phase][sq]
+            
+            bits &= bits - 1
+                
+        return score
+    
+    def get_game_phase(self):
+        self.game_phase = 0
+        our_side = self.side
+        other_side = self.side^1
+        
+        one_value = self.bb[our_side][KNIGHT] | self.bb[other_side][KNIGHT] | self.bb[our_side][BISHOP] | self.bb[other_side][BISHOP]
+        two_value = self.bb[our_side][ROOK] | self.bb[other_side][ROOK]
+        four_value = self.bb[our_side][QUEEN] | self.bb[other_side][QUEEN]
+        
+        self.game_phase = (one_value.bit_count() + two_value.bit_count()*2 + four_value.bit_count()*4)
+    
+    def checkmate_attemp(self):
+        score = 0
+        # --- Opponent‐king vs centre ---
+        our_king_sq = self.bb[self.side][KING].bit_length() - 1
+        other_king_sq = self.bb[self.side^1][KING].bit_length() - 1
+        our_row, our_col = divmod(our_king_sq, 8)
+        other_row, other_col = divmod(other_king_sq, 8)
+
+        # distance from centre file: max distance to either wall of the central two files (3,4)
+        opponent_dst_file = max(3 - other_col, other_col - 4)
+        # distance from centre rank
+        opponent_dst_rank = max(3 - other_row, other_row - 4)
+
+        # total “how far from centre” score
+        score += opponent_dst_file + opponent_dst_rank
+
+
+        # file and rank distance between kings
+        dst_between_file = abs(our_col - other_col)
+        dst_between_rank = abs(our_row - other_row)
+
+        # encourage our king to close in
+        score += 14 - (dst_between_file + dst_between_rank)
+
+        # scale and weight, then return as integer
+        return int(score * MATE_NET_WEIGHT * (24 - self.game_phase))
 
     
     def evaluate(self):
+        self.get_game_phase()
         our_score = self.count_material(self.side) 
-        other_score = self.count_material(self.side^1)
+        other_score = self.count_material(self.side^1)  
+        
         score = our_score - other_score
+        if self.game_phase <= 8:
+            game_phase = END_GAME
+        else:
+            game_phase = MIDDLE_GAME
+        bonus = self.calculate_bonus_point(self.side, game_phase) - self.calculate_bonus_point(self.side^1, game_phase)
+        score+= bonus
+        score += self.checkmate_attemp()
+        
         return score 
     
     def find_available_moves(self):

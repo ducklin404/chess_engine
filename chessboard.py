@@ -26,9 +26,9 @@ END_SCENE_COLOR = (40,40,40)
 TEXT_COLOR = (152, 255, 152)
 
 PIECE_TO_INDEX = {
-            'wp': 0, 'wn': 1, 'wb': 2, 'wr': 3, 'wq': 4, 'wk': 5,
-            'bp': 6, 'bn': 7, 'bb': 8, 'br': 9, 'bq': 10, 'bk': 11
-        }
+    'wp': 0, 'wn': 1, 'wb': 2, 'wr': 3, 'wq': 4, 'wk': 5,
+    'bp': 6, 'bn': 7, 'bb': 8, 'br': 9, 'bq': 10, 'bk': 11
+}
 
 
 def load_piece_images(cell_size, side):
