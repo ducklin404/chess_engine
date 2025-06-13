@@ -551,7 +551,7 @@ class ChessLogic:
     def negamax(self, alpha= -INF, beta= INF, depth = 2):
         """note that 1 for white and -1 for black"""
         
-        alpha0 = alpha
+        alpha_start = alpha              
         alpha, beta, hit = self.tt_probe(depth, alpha, beta)
         if hit:
             return alpha
@@ -580,10 +580,10 @@ class ChessLogic:
             if alpha >= beta:
                 break    
             
-        self.tt_store(depth, alpha, alpha0, beta, best_move)
+        self.tt_store(depth, alpha, alpha_start, beta, best_move)
         return alpha
     
-    def get_best_move(self, depth= 3):
+    def get_best_move(self, depth= 4):
         moves = self.find_available_moves()
         if not moves:
             return None
@@ -627,6 +627,10 @@ class ChessLogic:
         while bits:
             lsb = bits & -bits
             sq = lsb.bit_length() - 1
+            
+            # mirror only the rank for Black
+            if side == BLACK:
+                sq ^= 56         
             
             piece = self.piece_at[sq] % 6
             if piece != KING:
@@ -756,7 +760,7 @@ class ChessLogic:
                 checked += 1
                 checked_mask = 1 << sq
             self.attacked_mask |= _pawn_attack_mask
-            self.pawn_attack_mask = _pawn_attack_mask
+            self.pawn_attack_mask |= _pawn_attack_mask
             bits &= bits - 1
             
 
