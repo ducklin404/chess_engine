@@ -1,5 +1,5 @@
 from compute_helper import *
-from copy import deepcopy
+
 
 
 class ChessLogic:
@@ -12,10 +12,13 @@ class ChessLogic:
         self.white_queen_castle = True
         self.attacked_mask = 0
         self.pawn_attack_mask = 0
+        self.hash = 0
+        self.tt: dict[int, TTEntry] = {} 
         self.history = []
         self.bb = self.fen_to_bitboard(init_fen)
         self.bitboard_to_board()
         self.build_occ()
+        self.hash = self.compute_hash()  
 
     def restart(self):
         self.side = WHITE
@@ -26,12 +29,37 @@ class ChessLogic:
         self.white_queen_castle = True
         self.attacked_mask = 0
         self.pawn_attack_mask = 0
+        self.hash = 0
+        self.tt: dict[int, TTEntry] = {} 
         self.history = []
         self.bb = self.fen_to_bitboard(init_fen)
         self.bitboard_to_board()
         self.build_occ()
+        self.hash = self.compute_hash()  
     
+    def compute_hash(self):
+        key = 0
+        for sq in range(64):
+            p = self.piece_at[sq]
+            if p != NO_PIECE:
+                side = p // 6
+                piece_code = p%6
+                key ^= H_PIECE[side][piece_code][sq]
+                
+        # castling -> 4-bit mask KQkq 0000-1111
+        if self.white_king_castle:  key ^= H_CASTLE[0]
+        if self.white_queen_castle: key ^= H_CASTLE[1]
+        if self.black_king_castle:  key ^= H_CASTLE[2]
+        if self.black_queen_castle: key ^= H_CASTLE[3]
         
+        # en-passant: store file only if a pawn can capture it 
+        if self.en_passant is not None:
+            key ^= H_EN_PASSANT[self.en_passant & 7]
+            
+        if self.side == BLACK:
+            key ^= H_BLACK_TO_MOVE
+        return key    
+    
     def fen_to_bitboard(self, fen: str):
         char_to_index = {
             'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5}
@@ -72,7 +100,7 @@ class ChessLogic:
 
         from_bb = SQ_MASK[from_sq]
         to_bb   = SQ_MASK[to_sq]
-        
+        prev_hash = self.hash
         
 
         # 1. pull the piece off its origin square
@@ -80,6 +108,7 @@ class ChessLogic:
         self.occ[our_side] ^= from_bb
         self.all_occ ^= from_bb
         self.piece_at[from_sq] = NO_PIECE
+        self.hash ^= H_PIECE[our_side][piece_code][from_sq]
         
         # 2. capture or en passant processing
         cap_piece = NO_PIECE
@@ -95,11 +124,13 @@ class ChessLogic:
             self.occ[other_side] ^= cap_bb
             self.all_occ ^= cap_bb
             self.piece_at[cap_sq] = NO_PIECE
+            self.hash ^= H_PIECE[other_side][cap_piece][cap_sq]
+            
             
         # 3. adjust which piece land on to_sq and move the rook if castle
         landing = piece_code
         
-        if 8 <= flag <= 15:
+        if flag & 8:
             landing = (flag & 3) + 1
         elif flag in (2, 3):
             rk_from = (7 if flag == 2 else 0) ^ (our_side * 56)
@@ -112,28 +143,33 @@ class ChessLogic:
             self.all_occ ^= rk_bb
             self.piece_at[rk_from] = NO_PIECE
             self.piece_at[rk_to] = ROOK + 6*our_side
+            self.hash ^= H_PIECE[our_side][ROOK][rk_from]
+            self.hash ^= H_PIECE[our_side][ROOK][rk_to]
             
         # 4. move the piece to landing
         self.bb[our_side][landing] ^= to_bb
         self.occ[our_side] ^= to_bb
         self.all_occ ^= to_bb
         self.piece_at[to_sq] = landing + our_side*6
+        self.hash ^= H_PIECE[our_side][landing][to_sq]
         
         
         # 5. save history to revesve later
-
         castle_mask_before = pack_castle(
             self.white_king_castle, self.white_queen_castle,
             self.black_king_castle, self.black_queen_castle
         )
         
-        self.history.append(
-            HistoryEntry(
+        last_move = HistoryEntry(
                 encoded_move     = encoded_move,
                 captured         = cap_piece,
                 prev_ep          = self.en_passant,
-                castle_mask      = castle_mask_before
+                castle_mask      = castle_mask_before,
+                prev_hash             = prev_hash
             )
+        
+        self.history.append(
+            last_move
         )
         
         # 6. mark en passant and castling right
@@ -141,7 +177,12 @@ class ChessLogic:
             self.en_passant = (from_sq + to_sq) // 2
         else:
             self.en_passant = None
-        
+            
+        if last_move.prev_ep is not None:
+            self.hash ^= H_EN_PASSANT[last_move.prev_ep & 7]
+        if self.en_passant is not None:
+            self.hash ^= H_EN_PASSANT[self.en_passant & 7]
+            
         if piece_code == KING:
             if our_side == WHITE:
                 self.white_queen_castle = False
@@ -160,15 +201,28 @@ class ChessLogic:
                     self.black_queen_castle = False
                 elif from_sq == 63:
                     self.black_king_castle = False
+        
+            
         elif cap_piece == ROOK:
             if   to_sq == 0:   self.white_queen_castle  = False
             elif to_sq == 7:   self.white_king_castle   = False
             elif to_sq == 56:  self.black_queen_castle  = False
             elif to_sq == 63:  self.black_king_castle   = False
                 
-        
+        new_castle_mask = pack_castle(
+            self.white_king_castle, self.white_queen_castle,
+            self.black_king_castle, self.black_queen_castle
+        )            
+        change = castle_mask_before ^ new_castle_mask
+        if change:
+            if change & 1: self.hash ^= H_CASTLE[0]   # WK
+            if change & 2: self.hash ^= H_CASTLE[1]   # WQ
+            if change & 4: self.hash ^= H_CASTLE[2]   # BK
+            if change & 8: self.hash ^= H_CASTLE[3]   # BQ
+            
         # 7. flip the side
         self.side ^= 1  
+        self.hash ^= H_BLACK_TO_MOVE
 
     def unpush(self):
         
@@ -179,6 +233,8 @@ class ChessLogic:
         our_side    = moving_piece // 6
         other_side  = our_side ^ 1
         piece_code  = moving_piece % 6   
+        
+        self.hash = last_move.prev_hash
         
         from_bb = SQ_MASK[from_sq]
         to_bb   = SQ_MASK[to_sq]   
@@ -265,7 +321,7 @@ class ChessLogic:
                 captured = 4 if self.piece_at[to_sq] != NO_PIECE else 0
                 flag = promo + captured
             elif abs(to_sq - from_sq) == 16:
-                flag == DOUBLE_PUSH
+                flag = DOUBLE_PUSH
             elif abs(to_sq - from_sq) != 8 and self.piece_at[to_sq] == NO_PIECE:
                 flag = EN_PASSANT
             elif self.piece_at[to_sq] != NO_PIECE:
@@ -426,7 +482,42 @@ class ChessLogic:
         scored.sort(key=lambda x: x[0], reverse=True)
         return [mv for _, mv in scored]
     
-    def calculate_captured(self, alpha= -INF, beta= INF, depth = 5):        
+    
+    def tt_probe(self, depth: int, alpha: int, beta: int):
+        ent = self.tt.get(self.hash)
+        if ent and ent.depth >= depth:
+            if ent.flag == EXACT:
+                return ent.score, ent.move, True
+            if ent.flag == LOWER and ent.score > alpha:
+                alpha = ent.score
+            elif ent.flag == UPPER and ent.score < beta:
+                beta  = ent.score
+            # cut-off
+            if alpha >= beta:                        
+                return ent.score, ent.move, True
+        return alpha, beta, False
+        
+    def tt_store(self, depth, score, alpha0, beta, best_move):
+        if   score <= alpha0:  flag = UPPER    
+        elif score >= beta:    flag = LOWER    
+        else:                  flag = EXACT     
+
+        old = self.tt.get(self.hash)
+        # keep the best information we have
+        if old is None or depth >= old.depth or flag == EXACT:
+            # deeper entry *or* an EXACT replacement
+            self.tt[self.hash] = TTEntry(
+                key   = self.hash,
+                depth = depth,
+                flag  = flag,
+                score = score,
+                move  = best_move,
+            )
+            
+            
+    def calculate_captured(self, alpha= -INF, beta= INF, depth = 5):                    
+        alpha, beta, hit = self.tt_probe(depth, alpha, beta)
+        if hit: return alpha
         # prune if it's no better
         score = self.evaluate()
         if score >= beta:
@@ -438,7 +529,7 @@ class ChessLogic:
         
         
         capture_moves = [move for move in self.find_available_moves() if move & (1 << 14)]
-        self.order_moves(capture_moves)
+        capture_moves = self.order_moves(capture_moves)
         # always get the maximize value with negamax  
         for move in capture_moves:
             self.push(move)
@@ -452,8 +543,20 @@ class ChessLogic:
 
         return alpha
     
+        
+            
+    
+        
+    
     def negamax(self, alpha= -INF, beta= INF, depth = 2):
         """note that 1 for white and -1 for black"""
+        
+        alpha0 = alpha
+        alpha, beta, hit = self.tt_probe(depth, alpha, beta)
+        if hit:
+            return alpha
+        
+        
         moves = self.find_available_moves()
         
         # return score at leaf or when checkmated
@@ -464,27 +567,34 @@ class ChessLogic:
         if depth == 0:
             return self.calculate_captured(alpha=alpha, beta=beta)
         
-        self.order_moves(moves)
+        moves = self.order_moves(moves)
         
-        # always get the maximize value with negamax  
+        # always get the maximize value with negamax 
+        best_move = 0 
         for move in moves:
             self.push(move)
             score =  -self.negamax(alpha = -beta, beta = -alpha, depth=depth-1)
             self.unpush()
-            alpha = max(score, alpha)
-        
+            if score >= alpha:
+                alpha, best_move = score, move
             if alpha >= beta:
                 break    
             
-
+        self.tt_store(depth, alpha, alpha0, beta, best_move)
         return alpha
     
-    def get_best_move(self, depth= 5):
+    def get_best_move(self, depth= 3):
         moves = self.find_available_moves()
         if not moves:
             return None
         alpha= -INF
         beta= INF
+        
+        ent = self.tt.get(self.hash)
+        if ent and ent.depth >= depth and ent.flag == EXACT:
+            return ent.move 
+        
+               
         best_score = -INF
         best_move = None
         for move in moves:
@@ -497,6 +607,8 @@ class ChessLogic:
                 alpha = score
             if alpha >= beta:
                 break
+            
+        self.tt[self.hash] = TTEntry(self.hash, depth, EXACT, alpha, best_move)
         return best_move
 
     def count_material(self, side = WHITE):

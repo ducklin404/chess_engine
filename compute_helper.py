@@ -2,6 +2,7 @@ import os
 import pickle
 
 from dataclasses import dataclass
+import random
 from typing import List, Tuple
 
 INF = 999999999
@@ -80,6 +81,7 @@ class HistoryEntry:
     captured: int            # 0-11 or NO_PIECE
     prev_ep: int | None      # en-passant target before the move
     castle_mask: int         # 4 bits: WK WQ BK BQ
+    prev_hash: int
 
 
 def pack_castle(wk, qk, bk, bq) -> int:
@@ -529,6 +531,17 @@ BISHOP_RELEVANT_MASK = tables['bishop_masks']
 BISHOP_MAGIC = tables['bishop_magics']
 BISHOP_TABLE = tables['bishop_tables']
 
+random.seed(42)
+def rand64():
+    return random.getrandbits(64)
+
+H_PIECE =  [[[rand64() for _ in range(64)]
+                  for _ in range(6)]
+                  for _ in range(2)]
+H_CASTLE = [rand64() for _ in range(4)]
+H_EN_PASSANT = [rand64() for _ in range(8)]
+H_BLACK_TO_MOVE = rand64()
+
 
 def build_rook_table(square: int) -> list[int]:
     mask = rook_mask(square)
@@ -627,6 +640,17 @@ def decode_move(move: int):
     to_sq = (move >> 6) & 0x3F
     flag = move >> 12        # already only 4 bits
     return from_sq, to_sq, flag
+
+@dataclass
+class TTEntry:
+    key:  int
+    depth: int
+    flag:  int        # EXACT / LOWER / UPPER
+    score: int
+    move:  int 
+
+
+EXACT, LOWER, UPPER = 0, 1, 2
 
 MATE_NET_WEIGHT = 10
 WHITE_KING_EMPTY = 0x0000000000000060  # f1, g1
