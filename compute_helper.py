@@ -86,13 +86,13 @@ class HistoryEntry:
 
 def pack_castle(wk, qk, bk, bq) -> int:
     return (wk << 0) | (qk << 1) | (bk << 2) | (bq << 3)
-
-
+PAWN_ADVANCE = [0, 4, 7, 10, 18, 30, 60, 0]   
+PASSED_BONUS = 15               
+MATE = 1_000_000       
 def unpack_castle(mask: int):
     return bool(mask & 1), bool(mask & 2), bool(mask & 4), bool(mask & 8)
 
-
-init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+init_fen = "8/8/8/8/1q6/8/8/K1k5 w - - 0 1"
 
 RANK_1 = 0x00000000000000FF
 RANK_8 = 0xFF00000000000000
@@ -652,7 +652,6 @@ class TTEntry:
 
 EXACT, LOWER, UPPER = 0, 1, 2
 
-MATE_NET_WEIGHT = 10
 WHITE_KING_EMPTY = 0x0000000000000060  # f1, g1
 WHITE_QUEEN_EMPTY = 0x000000000000000E  # b1, c1, d1
 BLACK_KING_EMPTY = 0x6000000000000000  # f8, g8

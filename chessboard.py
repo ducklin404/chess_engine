@@ -227,7 +227,6 @@ def main():
     end_buttons = []
     button_width, button_height = 200, 60
     spacing = 20
-    end_w, end_h = (CELL_SIZE *5, CELL_SIZE*3)
     board_x = (screen.get_width() ) // 2
     board_y = (screen.get_height()) // 2 - 10
 

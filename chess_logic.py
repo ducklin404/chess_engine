@@ -76,6 +76,12 @@ class ChessLogic:
                 side = 1 if cell.islower() else 0
                 piece_bb[side][char_to_index[cell.upper()]] |= (1 << count)
                 count += 1
+    
+        castle_field = fen.split(' ', 1)[1]
+        self.white_king_castle  = 'K' in castle_field
+        self.white_queen_castle = 'Q' in castle_field
+        self.black_king_castle  = 'k' in castle_field
+        self.black_queen_castle = 'q' in castle_field
             
                 
         return piece_bb
@@ -524,7 +530,7 @@ class ChessLogic:
             return beta
         alpha = max(alpha, score)
         
-        if depth  == 0:
+        if depth == 0:
             return alpha
         
         
@@ -544,11 +550,8 @@ class ChessLogic:
         return alpha
     
         
-            
     
-        
-    
-    def negamax(self, alpha= -INF, beta= INF, depth = 2):
+    def negamax(self, alpha= -INF, beta= INF, depth = 2, ply = 0):
         """note that 1 for white and -1 for black"""
         
         alpha_start = alpha              
@@ -562,10 +565,12 @@ class ChessLogic:
         # return score at leaf or when checkmated
         if not moves:
             if self.attacked_mask & self.bb[self.side][KING]:
-                return -INF -1
+                win = MATE - ply
+                return -win
             return 0
         if depth == 0:
             return self.calculate_captured(alpha=alpha, beta=beta)
+            # return self.evaluate()
         
         moves = self.order_moves(moves)
         
@@ -573,7 +578,7 @@ class ChessLogic:
         best_move = 0 
         for move in moves:
             self.push(move)
-            score =  -self.negamax(alpha = -beta, beta = -alpha, depth=depth-1)
+            score =  -self.negamax(alpha = -beta, beta = -alpha, depth=depth-1, ply = ply + 1)
             self.unpush()
             if score >= alpha:
                 alpha, best_move = score, move
@@ -583,9 +588,10 @@ class ChessLogic:
         self.tt_store(depth, alpha, alpha_start, beta, best_move)
         return alpha
     
-    def get_best_move(self, depth= 4):
+    def get_best_move(self, depth= 3):
         moves = self.find_available_moves()
         if not moves:
+            print('what the fuck')
             return None
         alpha= -INF
         beta= INF
@@ -630,17 +636,81 @@ class ChessLogic:
             
             # mirror only the rank for Black
             if side == BLACK:
-                sq ^= 56         
+                sq_mirror = sq ^ 56          
+            else:
+                sq_mirror = sq      
             
             piece = self.piece_at[sq] % 6
             if piece != KING:
-                score += PIECE_TO_PST[piece][sq]
+                score += PIECE_TO_PST[piece][sq_mirror]
             else:
-                score += PIECE_TO_PST[piece + game_phase][sq]
+                score += PIECE_TO_PST[piece + game_phase][sq_mirror]
             
             bits &= bits - 1
                 
+        
+        # calculate isolate/doubled pawn and half open rook
+        own_pawns = self.bb[side][PAWN]
+        opp_pawns = self.bb[side ^ 1][PAWN]
+
+        own_pawn_files = [ (own_pawns & FILE_MASKS[f]).bit_count() for f in range(8) ]
+        opp_pawn_files = [ (opp_pawns & FILE_MASKS[f]).bit_count() for f in range(8) ]
+
+        isolated_cnt = 0
+        doubled_cnt  = 0
+        
+        for f in range(8):
+            cnt = own_pawn_files[f]
+            if cnt:
+                if cnt > 1:
+                    doubled_cnt += cnt - 1
+                left  = own_pawn_files[f - 1] if f > 0 else 0
+                right = own_pawn_files[f + 1] if f < 7 else 0
+                if left + right == 0:
+                    isolated_cnt += cnt
+
+        score -= doubled_cnt  * DOUBLED_PAWN_PENALTY
+        score -= isolated_cnt * ISOLATED_PAWN_PENALTY
+
+        own_rooks = self.bb[side][ROOK]
+        bits = own_rooks
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            file_idx = sq & 7
+
+            if own_pawn_files[file_idx] == 0:          
+                if opp_pawn_files[file_idx] == 0:
+                    score += ROOK_ON_OPEN_FILE_BONUS   
+                else:
+                    score += ROOK_ON_HALF_OPEN_FILE_BONUS
+
+            bits &= bits - 1
+            
+            
+        bits = own_pawns
+        while bits:
+            lsb = bits & -bits
+            sq  = lsb.bit_length() - 1
+
+            # rank from own side (0 = 2nd rank, 6 = 8th rank)
+            rank = ((sq ^ 56) >> 3) if side == BLACK else (sq >> 3) - 1
+            score += PAWN_ADVANCE[rank]                 # basic “further is better”
+
+            col = sq & 7
+            in_front = FILE_MASKS[col] & (
+                (MASK64 << sq) if side == WHITE else (MASK64 >> (63 - sq))
+            )
+            if not (in_front & opp_pawns):              # true passed pawn
+                score += PASSED_BONUS + PAWN_ADVANCE[rank]
+
+            bits &= bits - 1
+
+        
         return score
+    
+    
+    
     
     def get_game_phase(self):
         self.game_phase = 0
@@ -654,7 +724,11 @@ class ChessLogic:
         self.game_phase = (one_value.bit_count() + two_value.bit_count()*2 + four_value.bit_count()*4)
     
     def checkmate_attemp(self):
+        if self.game_phase >= 8:
+            return 0
         score = 0
+        phase_scale = 24 - self.game_phase      
+        king_bonus  = 2 * phase_scale           
         # --- Opponent‐king vs centre ---
         our_king_sq = self.bb[self.side][KING].bit_length() - 1
         other_king_sq = self.bb[self.side^1][KING].bit_length() - 1
@@ -667,7 +741,7 @@ class ChessLogic:
         opponent_dst_rank = max(3 - other_row, other_row - 4)
 
         # total “how far from centre” score
-        score += opponent_dst_file + opponent_dst_rank
+        score = king_bonus * (opponent_dst_file + opponent_dst_rank)
 
 
         # file and rank distance between kings
@@ -675,11 +749,11 @@ class ChessLogic:
         dst_between_rank = abs(our_row - other_row)
 
         # encourage our king to close in
-        score += 14 - (dst_between_file + dst_between_rank)
+        approach = (14 - (dst_between_file + dst_between_rank))//2
+        score += king_bonus * approach // 4     
 
         # scale and weight, then return as integer
-        return int(score * MATE_NET_WEIGHT * (24 - self.game_phase))
-
+        return score
     
     def evaluate(self):
         self.get_game_phase()
@@ -701,7 +775,7 @@ class ChessLogic:
         our_side = self.side
         other_side = our_side ^ 1
         self.attacked_mask = 0
-        self.pawn_attack_mask
+        self.pawn_attack_mask = 0
         pinned = [0] * 64
         moves: list[int] = []
         checked = 0

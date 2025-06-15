@@ -1,3 +1,4 @@
-a = 0b01111111111
+from compute_helper import *
 
-print(a & (1 << 14))
+
+print(decode_move(19001))
