@@ -456,6 +456,57 @@ class ChessLogic:
                     moves |= SQ_MASK[self.en_passant]
         return moves
     
+    def get_check_score(self, move: int) -> bool:
+        from_sq, to_sq, flag = decode_move(move)
+        mover = self.piece_at[from_sq] % 6
+
+        king_sq = (self.bb[self.side ^ 1][KING].bit_length() - 1)
+        check_score = 0
+        if mover == KNIGHT:
+            if (KNIGHT_TABLE[to_sq] & (1 << king_sq)):
+                check_score += CHECK_BONUS
+        elif mover == BISHOP:
+            if ((BISHOP_BETWEEN_MASK[to_sq][king_sq] & ~self.all_occ) == 0):
+                check_score += CHECK_BONUS
+        elif mover == ROOK:
+            if ((ROOK_BETWEEN_MASK[to_sq][king_sq] & ~self.all_occ) == 0):
+                check_score += CHECK_BONUS
+        elif mover == QUEEN:
+            diag = ((BISHOP_BETWEEN_MASK[to_sq][king_sq] & ~self.all_occ) == 0)
+            ortho = ((ROOK_BETWEEN_MASK[to_sq][king_sq] & ~self.all_occ) == 0)
+            if diag or ortho:
+                check_score += CHECK_BONUS
+        elif mover == PAWN:
+            table = (WHITE_PAWN_ATTACK_TABLE if self.side == WHITE
+                    else BLACK_PAWN_ATTACK_TABLE)
+            if (table[to_sq] & (1 << king_sq)):
+                check_score += CHECK_BONUS
+        
+        
+        # check discover checks
+        bits = self.bb[self.side][QUEEN] | self.bb[self.side][ROOK]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            if (ROOK_BETWEEN_MASK[sq][king_sq] & SQ_MASK[from_sq]) and not (ROOK_BETWEEN_MASK[sq][king_sq] & SQ_MASK[to_sq]):
+                if ROOK_BETWEEN_MASK[sq][king_sq].bit_count() == 2:
+                    check_score += CHECK_BONUS
+                    
+            bits &= bits - 1
+            
+        bits = self.bb[self.side][BISHOP] | self.bb[self.side][ROOK]
+        while bits:
+            lsb = bits & -bits
+            sq = lsb.bit_length() - 1
+            if (BISHOP_BETWEEN_MASK[sq][king_sq] & SQ_MASK[from_sq]) and not (BISHOP_BETWEEN_MASK[sq][king_sq] & SQ_MASK[to_sq]):
+                if BISHOP_BETWEEN_MASK[sq][king_sq].bit_count() == 2:
+                    check_score += CHECK_BONUS
+                    
+            bits &= bits - 1
+        
+        return check_score
+    
+    
 
     
     def order_moves(self, moves):
@@ -477,8 +528,11 @@ class ChessLogic:
             # 2) prioritize promotion
             if flag & 8:
                 score += PIECE_VALUES[(flag & 3) + 1]
+                
+            # 3) bonus for check
+            score += self.get_check_score(move)
 
-            # 3) penalize moving into an opponent‐pawn attack
+            # 4) penalize moving into an opponent‐pawn attack
             if SQ_MASK[to_sq] & self.pawn_attack_mask:
                 score -= PIECE_VALUES[moved_piece]
 
@@ -603,6 +657,7 @@ class ChessLogic:
                
         best_score = -INF
         best_move = None
+        moves = self.order_moves(moves)
         for move in moves:
             self.push(move)
             score = - self.negamax(alpha= -beta, beta= -alpha, depth=depth -1)
@@ -687,6 +742,7 @@ class ChessLogic:
 
             bits &= bits - 1
             
+        
             
         bits = own_pawns
         while bits:

@@ -88,6 +88,7 @@ def pack_castle(wk, qk, bk, bq) -> int:
     return (wk << 0) | (qk << 1) | (bk << 2) | (bq << 3)
 PAWN_ADVANCE = [0, 4, 7, 10, 18, 30, 60, 0]   
 PASSED_BONUS = 15               
+CHECK_BONUS = 800      
 MATE = 1_000_000       
 def unpack_castle(mask: int):
     return bool(mask & 1), bool(mask & 2), bool(mask & 4), bool(mask & 8)
