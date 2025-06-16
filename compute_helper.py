@@ -93,7 +93,8 @@ MATE = 1_000_000
 def unpack_castle(mask: int):
     return bool(mask & 1), bool(mask & 2), bool(mask & 4), bool(mask & 8)
 
-init_fen = "8/8/8/8/1q6/8/8/K1k5 w - - 0 1"
+# init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+init_fen = '78/8/3k4/3p4/8/3K4/8/8 b - - 0 1'
 
 RANK_1 = 0x00000000000000FF
 RANK_8 = 0xFF00000000000000

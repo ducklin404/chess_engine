@@ -642,8 +642,13 @@ class ChessLogic:
         self.tt_store(depth, alpha, alpha_start, beta, best_move)
         return alpha
     
+    
+    
     def get_best_move(self, depth= 3):
+        self.get_game_phase()
         moves = self.find_available_moves()
+        if self.game_phase <= 3:
+            depth += 5
         if not moves:
             print('what the fuck')
             return None
