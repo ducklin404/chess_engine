@@ -3,6 +3,9 @@ from compute_helper import *
 
 
 class ChessLogic:
+    BOOK: dict[int, list[int]] = {}      
+    
+    
     def __init__(self):
         self.side = WHITE
         self.en_passant = None
@@ -642,13 +645,76 @@ class ChessLogic:
         self.tt_store(depth, alpha, alpha_start, beta, best_move)
         return alpha
     
+    @classmethod
+    def load_opening_book(cls, path: str = "opening.json"):
+        import json, pathlib
+        # already loaded
+        if cls.BOOK:              
+            return
+        p = pathlib.Path(path)
+        if p.exists():
+            with p.open() as fh:
+                raw = json.load(fh)
+            # keys were dumped as strings, convert back to int
+            cls.BOOK = {int(k): v for k, v in raw.items()}
+            print(f"[book] loaded {len(cls.BOOK):,} positions")
     
+    @property
+    def current_fen(self) -> str:
+        piece_map = []
+        for r in range(8):
+            empty = 0
+            row   = ""
+            for c in range(8):
+                sq = (7 - r) * 8 + c
+                p  = self.piece_at[sq]
+                if p == NO_PIECE:
+                    empty += 1
+                else:
+                    if empty:
+                        row += str(empty)
+                        empty = 0
+                    sym = "PNBRQKpnbrqk"[p]
+                    row += sym
+            if empty:
+                row += str(empty)
+            piece_map.append(row)
+        pieces  = "/".join(piece_map)
+        side    = "w" if self.side == WHITE else "b"
+
+        castles = "".join([
+            "K" if self.white_king_castle  else "",
+            "Q" if self.white_queen_castle else "",
+            "k" if self.black_king_castle  else "",
+            "q" if self.black_queen_castle else "",
+        ]) or "-"
+
+        ep = "-" if self.en_passant is None else "abcdefgh"[self.en_passant & 7] + str((self.en_passant >> 3)+1)
+
+        return f"{pieces} {side} {castles} {ep} 0 1"
+    
+    def get_book_move(self) -> int | None:
+        if not ChessLogic.BOOK:
+            # lazy-load on first call
+            ChessLogic.load_opening_book()   
+
+        entries = ChessLogic.BOOK.get(self.hash)
+        if not entries:
+            return None                      
+        
+        return random.choice(entries)
     
     def get_best_move(self, depth= 3):
+        move = self.get_book_move()
+        if move is not None:
+            return move            
+        
         self.get_game_phase()
         moves = self.find_available_moves()
         if self.game_phase <= 3:
-            depth += 5
+            depth += 3
+        if self.game_phase == 0:
+            depth += 3
         if not moves:
             print('what the fuck')
             return None
