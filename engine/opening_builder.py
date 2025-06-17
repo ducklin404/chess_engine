@@ -1,8 +1,8 @@
 #
 import json, random, sys, pathlib
 import chess.pgn           
-from compute_helper import *     
-from chess_logic import ChessLogic   
+from engine.chess_logic import ChessLogic   
+from engine.move import encode_move
 
 def san_to_engine_move(position: ChessLogic, san: str) -> int | None:
     """
@@ -52,4 +52,11 @@ if __name__ == "__main__":
     src = sys.argv[1] if len(sys.argv) > 1 else "eco.pgn"
     dst = sys.argv[2] if len(sys.argv) > 2 else "opening.json"
     build_book(src, dst)
-    print(f"Built {dst} with {sum(len(v) for v in json.load(open(dst))):,} positions.")
+    with open(dst) as fh:
+        data = json.load(fh)
+
+    num_positions = len(data)                      
+    num_moves     = sum(len(m) for m in data.values())  
+
+    print(f"Built {dst} with "
+          f"{num_positions:,} positions and {num_moves:,} moves.")

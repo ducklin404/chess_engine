@@ -1,4 +1,9 @@
-from compute_helper import *
+import random
+
+from engine.constants import *
+from engine.move import *
+from engine.attack_tables import *
+from engine.zobrist import H_BLACK_TO_MOVE, H_CASTLE, H_EN_PASSANT, H_PIECE
 
 
 
@@ -697,6 +702,7 @@ class ChessLogic:
         if not ChessLogic.BOOK:
             # lazy-load on first call
             ChessLogic.load_opening_book()   
+    
 
         entries = ChessLogic.BOOK.get(self.hash)
         if not entries:

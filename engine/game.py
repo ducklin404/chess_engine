@@ -1,5 +1,5 @@
-from chess_logic import ChessLogic
-from compute_helper import BLACK
+from engine.chess_logic import ChessLogic
+from engine.constants import BLACK
 
 class Game:
     def __init__(self):
