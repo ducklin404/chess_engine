@@ -1,7 +1,10 @@
+"""Random Zobrist hashing keys."""
+
 import random
 
 random.seed(42)
 def rand64():
+    """Return a random 64-bit integer."""
     return random.getrandbits(64)
 
 H_PIECE =  [[[rand64() for _ in range(64)]

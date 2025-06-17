@@ -1,3 +1,5 @@
+"""precompute all the attackable moves"""
+
 from engine.magic import load_or_create_tables, get_magic_index
 from engine.constants import SQ_MASK, RANK_2, RANK_7
 from engine.bitboard_utils import bishop_mask, rook_mask, submasks, build_between_diagonal, build_between_line, rook_attack, bishop_attack

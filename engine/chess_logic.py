@@ -1,3 +1,4 @@
+"""Main logic for push/unpush and gen engine moves"""
 import random
 
 from engine.constants import *

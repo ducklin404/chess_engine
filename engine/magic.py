@@ -1,3 +1,5 @@
+"""Find magic numbers"""
+
 import os
 from typing import List, Tuple
 import pickle

@@ -1,3 +1,5 @@
+"""Core constants used throughout the engine."""
+
 from ui.config import init_fen
 
 

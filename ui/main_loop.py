@@ -1,3 +1,5 @@
+"""Pygame event loop and rendering logic."""
+
 import pygame
 from pygame import Surface
 from engine.chess_logic import *
@@ -10,37 +12,20 @@ game = Game()
 
        
 def quit_game():
+    """Terminate the pygame instance and exit the program."""
     pygame.quit()
     sys.exit()
     
     
 def play_again():
+    """Restart the current game and spawn the engine thread."""
     game.reset()
     threading.Thread(target=game.start, args=(side, )).start()
 
-class Button:
-    def __init__(self, rect, text, base_color, hover_color, action):
-        self.rect = pygame.Rect(rect)
-        self.text = text
-        self.base_color = base_color
-        self.hover_color = hover_color
-        self.action = action
-        self.hovered = False
 
-    def draw(self, surface, font):
-        color = self.hover_color if self.hovered else self.base_color
-        pygame.draw.rect(surface, color, self.rect)
-        text_surf = font.render(self.text, True, TEXT_COLOR)
-        text_rect = text_surf.get_rect(center=self.rect.center)
-        surface.blit(text_surf, text_rect)
-
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEMOTION:
-            self.hovered = self.rect.collidepoint(event.pos)
-        elif event.type == pygame.MOUSEBUTTONDOWN and self.hovered:
-            self.action()
  
 def opponent_play(chess: ChessLogic, board_state: list) -> None:
+    """Make the engine play a move and update ``board_state``."""
     move = chess.get_best_move()
     if not move:
         game.moves = [0] * 64
@@ -56,6 +41,8 @@ def opponent_play(chess: ChessLogic, board_state: list) -> None:
     game.moves[:] = chess.moves_to_data(encoded_moves)
 
 def main():
+    """Entry point for the interactive GUI."""
+    
     pygame.init()
     screen = pygame.display.set_mode((BOARD_SIZE, BOARD_SIZE))
     pygame.display.set_caption("chess engine hehehe")

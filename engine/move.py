@@ -1,3 +1,5 @@
+"""Utility structures and helpers for move representation."""
+
 from dataclasses import dataclass
 
 @dataclass
@@ -31,6 +33,9 @@ def decode_move(move: int):
 
 
 def pack_castle(wk, qk, bk, bq) -> int:
+    """Pack individual castling rights into a 4-bit mask."""
     return (wk << 0) | (qk << 1) | (bk << 2) | (bq << 3)
+
 def unpack_castle(mask: int):
+    """Unpack individual castling rights from a 4-bit mask."""
     return bool(mask & 1), bool(mask & 2), bool(mask & 4), bool(mask & 8)

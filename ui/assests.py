@@ -1,7 +1,10 @@
+"""Asset loading utilities."""
+
 import pygame
 from ui.config import *
 
 def load_piece_images(cell_size, side):
+    """Load and scale piece sprites for the given ``side``."""
     piece_images = {}
     if side == 'white':
         for piece in PIECES:

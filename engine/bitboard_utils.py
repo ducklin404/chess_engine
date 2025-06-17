@@ -1,12 +1,14 @@
 def popcount(x: int) -> int:
+    """Return the number of set bits in ``x``."""
     return x.bit_count()
 
 
 def rank_of(sq: int) -> int:
+    """Return board rank (0..7) for a given square index."""
     return sq >> 3
 
 def submasks(mask: int):
-    """Yield all subsets of `mask`, including 0."""
+    """Yield all subsets of ``mask``, including 0."""
     sub = mask
     while True:
         yield sub
@@ -15,6 +17,7 @@ def submasks(mask: int):
         sub = (sub - 1) & mask
 
 def rook_mask(sq: int) -> int:
+    """Mask of squares a rook could slide to from ``sq`` ignoring blockers."""
     r, f = divmod(sq, 8)
     mask = 0
     for r_ in range(r + 1, 7):
@@ -28,6 +31,7 @@ def rook_mask(sq: int) -> int:
     return mask
 
 def bishop_mask(sq: int) -> int:
+    """Mask of squares a bishop could slide to from ``sq`` ignoring blockers."""
     r, f = divmod(sq, 8)
     mask = 0
     for dr, df in ((1, 1), (1, -1), (-1, 1), (-1, -1)):
@@ -38,6 +42,7 @@ def bishop_mask(sq: int) -> int:
     return mask
 
 def build_between_diagonal(from_sq, to_sq):
+    """Return the diagonal bitboard connecting ``from_sq`` to ``to_sq``."""
     diagonal = 0
     from_row, from_col = divmod(from_sq, 8)
     to_row, to_col = divmod(to_sq, 8)
@@ -54,6 +59,7 @@ def build_between_diagonal(from_sq, to_sq):
 
 
 def build_between_line(from_sq, to_sq):
+    """Return the horizontal/vertical line between two squares."""
     line = 0
     from_row, from_col = divmod(from_sq, 8)
     to_row, to_col = divmod(to_sq, 8)
@@ -74,6 +80,7 @@ def build_between_line(from_sq, to_sq):
     return line
 
 def rook_attack(sq: int, occ: int) -> int:
+    """Compute rook attacks from ``sq`` given occupancy ``occ``."""
     r, f = divmod(sq, 8)
     atk = 0
     for r_ in range(r + 1, 8):
@@ -100,6 +107,7 @@ def rook_attack(sq: int, occ: int) -> int:
 
 
 def bishop_attack(sq: int, occ: int) -> int:
+    """Compute bishop attacks from ``sq`` given occupancy ``occ``."""
     r, f = divmod(sq, 8)
     atk = 0
     for dr, df in ((1, 1), (1, -1), (-1, 1), (-1, -1)):

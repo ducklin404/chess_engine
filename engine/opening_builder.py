@@ -1,4 +1,5 @@
-#
+"""generate opening book"""
+
 import json, random, sys, pathlib
 import chess.pgn           
 from engine.chess_logic import ChessLogic   

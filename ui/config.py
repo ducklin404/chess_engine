@@ -1,3 +1,5 @@
+"""Configuration values for the UI and default board setup."""
+
 init_fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 # CHoose your side here
